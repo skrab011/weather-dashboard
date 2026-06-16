@@ -1,5 +1,8 @@
 # Weather Dashboard — Project Context
 
+## Working rules
+- Do not implement fixes, improvements, or build work unless explicitly directed to by the user. Diagnose, explain, and ask first.
+
 Personal weather-consolidation PWA for two Colorado locations. Spec is locked (see `weather-forecast-overview.md` and `weather-pwa-planning.md` for full history/reasoning). This file is the working reference for build sessions.
 
 ## Goal
