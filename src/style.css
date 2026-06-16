@@ -1,18 +1,446 @@
+/* =========================================================================
+   Design system tokens
+   ========================================================================= */
 :root {
   color-scheme: dark;
-  --bg: #0b0d11;
-  --fg: #e6e8eb;
+
+  /* Backgrounds */
+  --bg:            #0b0d11;   /* page background */
+  --surface:       #13161d;   /* card background */
+  --surface-raised:#1c2030;   /* active tab, hover states */
+  --border:        #252a38;   /* subtle dividers */
+
+  /* Text */
+  --fg:            #e6e8eb;   /* primary text */
+  --fg-secondary:  #9aa3b2;   /* secondary text */
+  --muted:         #6b7280;   /* timestamps, placeholders */
+
+  /* Accent / interactive */
+  --accent:        #4a9eff;   /* active tab underline, links */
+  --accent-dim:    #1e3a5f;   /* active tab background tint */
+
+  /* Severity */
+  --danger:        #ef4444;   /* warnings, errors */
+  --danger-bg:     #2d1515;
+  --warn:          #f59e0b;   /* advisories, watches */
+  --warn-bg:       #2d2010;
+  --info:          #4a9eff;
+  --info-bg:       #0f1f3a;
+
+  /* Misc */
+  --radius:        12px;
+  --radius-sm:     8px;
+}
+
+/* =========================================================================
+   Reset & base
+   ========================================================================= */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  /* Respect iPhone notch / Dynamic Island */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  min-height: 100dvh;
 }
 
-.shell {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* =========================================================================
+   App header — title + location tabs
+   ========================================================================= */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1rem 0;
+}
+
+.app-title {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+/* =========================================================================
+   Location tab bar
+   ========================================================================= */
+.tab-bar {
+  display: flex;
+  gap: 0;
+}
+
+.tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 0.5rem;
+  color: var(--fg-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab--active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+.tab:hover:not(.tab--active) {
+  color: var(--fg);
+  background: var(--surface-raised);
+}
+
+/* =========================================================================
+   Hourly / 7-day view toggle
+   ========================================================================= */
+.view-toggle {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg);
+}
+
+.toggle-btn {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.75rem;
+  color: var(--fg-secondary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.toggle-btn--active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* =========================================================================
+   Content area & view visibility
+   — Both hourly and 7-day cards are always in the DOM.
+   — The data-view attribute on .content controls which one is visible.
+   — No JS toggling needed; CSS handles it instantly with no flicker.
+   ========================================================================= */
+.content {
+  flex: 1;
+  padding: 0.75rem 1rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.content[data-view="hourly"] .view-7day  { display: none; }
+.content[data-view="7day"]   .view-hourly { display: none; }
+
+/* =========================================================================
+   Alert banners
+   ========================================================================= */
+.alert-banner {
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.875rem;
+}
+
+.alert-banner--danger {
+  background: var(--danger-bg);
+  border-left: 3px solid var(--danger);
+}
+
+.alert-banner--warn {
+  background: var(--warn-bg);
+  border-left: 3px solid var(--warn);
+}
+
+.alert-banner--info {
+  background: var(--info-bg);
+  border-left: 3px solid var(--info);
+}
+
+.alert-event {
+  font-weight: 600;
+}
+
+.alert-headline {
+  color: var(--fg-secondary);
+}
+
+/* =========================================================================
+   Cards — base, loading, and error states
+   ========================================================================= */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card--loading {
+  min-height: 120px;
+  padding: 1rem;
+}
+
+/* Stale-data error: red left border but card still shows content */
+.card--error {
+  border-left: 3px solid var(--danger);
+}
+
+.card-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0.85rem 1rem 0.5rem;
+}
+
+.card-empty {
+  padding: 0.5rem 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.card-footer {
+  font-size: 0.75rem;
+  color: var(--muted);
+  padding: 0.6rem 1rem 0.85rem;
+  border-top: 1px solid var(--border);
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.footer-error {
+  color: var(--danger);
+}
+
+/* =========================================================================
+   Skeleton shimmer — shown while data is loading
+   ========================================================================= */
+@keyframes shimmer {
+  from { background-position: -400px 0; }
+  to   { background-position:  400px 0; }
+}
+
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--surface-raised) 50%,
+    var(--surface) 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.skeleton--title {
+  height: 12px;
+  width: 60px;
+  margin-bottom: 0.85rem;
+}
+
+.skeleton--line {
+  height: 16px;
+  margin-bottom: 0.65rem;
+}
+
+.skeleton--short {
+  width: 60%;
+}
+
+/* =========================================================================
+   Conditions card (Now)
+   ========================================================================= */
+.cond-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.45rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.cond-row:last-of-type {
+  border-bottom: none;
+}
+
+.cond-label {
+  font-size: 0.875rem;
+  color: var(--fg-secondary);
+}
+
+.cond-value {
+  font-size: 0.95rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Rotated directional arrow for wind — rotated via inline style to match bearing */
+.wind-arrow {
+  display: inline-block;
+  font-size: 1rem;
+  color: var(--accent);
+  transition: transform 0.3s;
+}
+
+/* =========================================================================
+   Hourly strip — horizontally scrollable row of hour blocks
+   ========================================================================= */
+.hourly-strip {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.5rem;
+  /* Hide scrollbar visually while keeping it functional */
+  scrollbar-width: none;
+}
+
+.hourly-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.hour-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.85rem;
+  min-width: 70px;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.hour-block:last-child {
+  border-right: none;
+}
+
+.hour-time {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.hour-icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.hour-temp {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.hour-precip {
+  font-size: 0.75rem;
+  color: var(--info);
+}
+
+/* =========================================================================
+   7-day forecast list
+   ========================================================================= */
+.forecast-list {
+  padding: 0 0 0.25rem;
+}
+
+.forecast-row {
+  display: grid;
+  grid-template-columns: 90px 40px 55px 1fr 36px;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.forecast-row:last-child {
+  border-bottom: none;
+}
+
+.forecast-day {
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.forecast-icon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
+.forecast-temp {
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.forecast-desc {
+  font-size: 0.82rem;
+  color: var(--fg-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forecast-precip {
+  font-size: 0.8rem;
+  color: var(--info);
+  text-align: right;
+}
+
+/* =========================================================================
+   Responsive — desktop / wider screens get a two-column card grid
+   ========================================================================= */
+@media (min-width: 640px) {
+  .content {
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 1rem 1.5rem 2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    gap: 0.85rem;
+  }
+
+  /* Alert banners and the forecast/hourly cards span both columns */
+  #alerts-region,
+  #hourly-region,
+  #forecast-region {
+    grid-column: 1 / -1;
+  }
 }
