@@ -62,6 +62,7 @@ export interface NWSAlert {
   effective: string;  // ISO 8601
   expires: string | undefined;
   description: string;
+  url: string;        // link to the human-readable alert page on weather.gov
 }
 
 // Sunrise and sunset for a location on a given day.

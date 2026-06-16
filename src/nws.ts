@@ -133,8 +133,10 @@ export async function fetchAlerts(lat: number, lon: number): Promise<NWSAlert[]>
   const res = await nwsFetch(`${NWS_BASE}/alerts/active?point=${lat},${lon}`);
   const json = await res.json();
 
-  return ((json.features ?? []) as Array<{ properties: NWSAlert }>)
-    .map((f) => f.properties)
+  // The GeoJSON feature's top-level `id` is the canonical alert URL.
+  // We attach it to the alert so the render layer can make it a clickable link.
+  return ((json.features ?? []) as Array<{ id: string; properties: NWSAlert }>)
+    .map((f) => ({ ...f.properties, url: f.id }))
     .filter((a) => ALERT_KEYWORDS.some((kw) => a.event.toLowerCase().includes(kw)));
 }
 

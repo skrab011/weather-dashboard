@@ -181,10 +181,17 @@ function renderAlerts(result: SourceResult<NWSAlert[]>): void {
   }
 
   el.innerHTML = result.data.map((alert) => `
-    <div class="alert-banner alert-banner--${alertSeverity(alert.event)}" role="alert">
-      <strong class="alert-event">${alert.event}</strong>
+    <a
+      class="alert-banner alert-banner--${alertSeverity(alert.event)}"
+      href="${alert.url}"
+      target="_blank"
+      rel="noopener noreferrer"
+      role="alert"
+      aria-label="${alert.event} — tap to read full alert"
+    >
+      <strong class="alert-event">${alert.event} ↗</strong>
       <span class="alert-headline">${alert.headline}</span>
-    </div>
+    </a>
   `).join("");
 }
 

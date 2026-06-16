@@ -51,6 +51,9 @@ body {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   min-height: 100dvh;
+  /* Prevent double-tap zoom on iOS Safari without disabling pinch-to-zoom.
+     "manipulation" means: handle pan and pinch-zoom, but not double-tap-zoom. */
+  touch-action: manipulation;
 }
 
 #app {
@@ -170,6 +173,14 @@ body {
   flex-direction: column;
   gap: 0.2rem;
   font-size: 0.875rem;
+  /* Reset link styles — the banner itself is the clickable element */
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.alert-banner:hover {
+  filter: brightness(1.15);
 }
 
 .alert-banner--danger {
