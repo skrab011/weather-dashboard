@@ -6,3 +6,9 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
     <p>Scaffold is live. Data sources land in later workstreams.</p>
   </main>
 `;
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {
+    // Service worker registration failed — app still works, just no offline cache
+  });
+}
