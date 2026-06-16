@@ -348,9 +348,63 @@ function renderHourly(result: SourceResult<NWSPeriod[]>): void {
 }
 
 // ---------------------------------------------------------------------------
-// 7-day forecast — stacked rows, one per period (day + night).
+// 7-day forecast — one row per calendar day, combining day + night periods.
 // Hidden when the hourly view is active (CSS data-view attribute).
 // ---------------------------------------------------------------------------
+
+interface ForecastPair {
+  day: NWSPeriod | null;   // daytime period (may be absent if day starts at night)
+  night: NWSPeriod | null; // overnight period (may be absent for the last day)
+}
+
+// Group flat NWS periods into day/night pairs.
+// NWS returns alternating daytime/nighttime periods, but can start with a
+// nighttime period (e.g. "Tonight" when fetched in the afternoon).
+// In that case the first pair has day: null and night: <tonight period>.
+function pairPeriods(periods: NWSPeriod[]): ForecastPair[] {
+  const pairs: ForecastPair[] = [];
+  let i = 0;
+
+  // If the first period is nighttime, it stands alone as a night-only row
+  if (periods.length > 0 && !periods[0].isDaytime) {
+    pairs.push({ day: null, night: periods[0] });
+    i = 1;
+  }
+
+  // Walk the rest in day/night pairs
+  while (i < periods.length) {
+    const day = periods[i].isDaytime ? periods[i] : null;
+    const night = periods[i + 1] && !periods[i + 1].isDaytime ? periods[i + 1] : null;
+    pairs.push({ day, night });
+    i += (day ? 1 : 0) + (night ? 1 : 0) || 1; // advance at least 1 to avoid infinite loop
+  }
+
+  return pairs;
+}
+
+// Extract a numeric wind speed from NWS strings like "10 mph" or "10 to 15 mph".
+// Returns just the number(s), e.g. "10" or "10–15".
+function windMph(raw: string): string {
+  const stripped = raw.replace(/ mph/gi, "").trim();
+  if (/^\d+$/.test(stripped)) return stripped;
+  // "10 to 15" → "10–15"
+  return stripped.replace(/\s+to\s+/i, "–");
+}
+
+// Render one stacked cell: top line = day value, bottom line = night value.
+// If a period is absent, that line is rendered as an em dash.
+function stackedCell(
+  className: string,
+  dayVal: string,
+  nightVal: string,
+): string {
+  return `
+    <span class="${className}">
+      <span class="fc-day-val">${dayVal}</span>
+      <span class="fc-night-val">${nightVal}</span>
+    </span>`;
+}
+
 function renderForecast(result: SourceResult<NWSPeriod[]>): void {
   const el = document.getElementById("forecast-region")!;
 
@@ -372,26 +426,49 @@ function renderForecast(result: SourceResult<NWSPeriod[]>): void {
   }
 
   const periods = (result.data ?? result.lastGoodData)!;
+  const pairs = pairPeriods(periods);
+
+  const rows = pairs.map(({ day, night }) => {
+    // Date label: use the daytime period's date, or "Tonight" for night-only rows
+    const dateLabel = day ? fmtDay(day.startTime) : "Tonight";
+
+    // Temperature: day high / night low, stacked
+    const tempDay   = day   ? `${day.temperature}°`   : "—";
+    const tempNight = night ? `${night.temperature}°`  : "—";
+
+    // Outlook text, stacked
+    const descDay   = day   ? day.shortForecast   : "—";
+    const descNight = night ? night.shortForecast  : "—";
+
+    // Wind: direction arrow + numeric mph, stacked
+    const windCell = (p: NWSPeriod | null): string => {
+      if (!p) return "—";
+      const deg = WIND_DIR_DEG[p.windDirection] ?? 0;
+      return `<span class="wind-arrow" style="transform:rotate(${deg}deg)" aria-hidden="true">↑</span>${windMph(p.windSpeed)} mph`;
+    };
+
+    // Precipitation %, stacked
+    const precipDay   = day   ? `${day.probabilityOfPrecipitation?.value   ?? 0}%` : "—";
+    const precipNight = night ? `${night.probabilityOfPrecipitation?.value ?? 0}%` : "—";
+
+    return `
+      <div class="forecast-row" role="listitem">
+        <span class="forecast-day">${dateLabel}</span>
+        ${stackedCell("forecast-temp", tempDay, tempNight)}
+        ${stackedCell("forecast-desc", descDay, descNight)}
+        <span class="forecast-wind">
+          <span class="fc-day-val">${windCell(day)}</span>
+          <span class="fc-night-val">${windCell(night)}</span>
+        </span>
+        ${stackedCell("forecast-precip", precipDay, precipNight)}
+      </div>`;
+  });
 
   el.innerHTML = `
     <section class="card view-7day${result.error ? " card--error" : ""}">
       <h2 class="card-title">7-Day</h2>
       <div class="forecast-list" role="list">
-        ${periods.map((p) => `
-          <div class="forecast-row" role="listitem">
-            <span class="forecast-day">${p.isDaytime ? fmtDay(p.startTime) : "Night"}</span>
-            <img
-              class="forecast-icon"
-              src="${p.icon}"
-              alt="${p.shortForecast}"
-              width="36" height="36"
-              loading="lazy"
-            />
-            <span class="forecast-temp">${p.temperature}°F</span>
-            <span class="forecast-desc">${p.shortForecast}</span>
-            <span class="forecast-precip" title="Precipitation probability">${p.probabilityOfPrecipitation?.value ?? 0}%</span>
-          </div>
-        `).join("")}
+        ${rows.join("")}
       </div>
       ${cardFooter(result.lastUpdated ?? result.lastGoodUpdated, result.error)}
     </section>
