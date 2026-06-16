@@ -1,0 +1,18 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0d11;
+  --fg: #e6e8eb;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.shell {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
