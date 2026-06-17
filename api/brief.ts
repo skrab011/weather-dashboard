@@ -1,15 +1,10 @@
 // ---------------------------------------------------------------------------
-// GET /api/brief — returns the cached consensus brief from Vercel KV.
+// GET /api/brief — returns the cached consensus brief from Vercel Blob.
 //
-// Normal page loads:  reads the cached entry (fast, no AI call).
+// Normal page loads:  reads the cached blob (fast, no AI call).
 // Manual refresh:     ?refresh=true triggers a fresh generation and re-caches.
-//
-// The brief itself is generated either by the cron job (/api/brief-cron)
-// or on manual refresh here. Both paths call generateBrief() from
-// brief-generate.ts and write the result to the same KV key.
 // ---------------------------------------------------------------------------
 
-import { put, list } from "@vercel/blob";
 import { generateBrief } from "./brief-generate";
 import type { BriefResult } from "./brief-generate";
 
@@ -26,22 +21,41 @@ type Res = {
 const BLOB_NAME = "consensus-brief.json";
 
 // Read the cached brief from Vercel Blob storage.
-// Uses list() to find the blob by name prefix, then fetches its content.
+// Returns null if Blob isn't configured, the file doesn't exist, or fetch fails.
 async function readCached(): Promise<BriefResult | null> {
-  const { blobs } = await list({ prefix: "consensus-brief" });
-  if (blobs.length === 0) return null;
-  const res = await fetch(blobs[0].url);
-  if (!res.ok) return null;
-  return res.json() as Promise<BriefResult>;
+  try {
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) return null;
+
+    // Dynamically import so a missing token doesn't crash at module load time
+    const { list } = await import("@vercel/blob");
+    const { blobs } = await list({ prefix: "consensus-brief", token });
+    if (blobs.length === 0) return null;
+    const res = await fetch(blobs[0].url);
+    if (!res.ok) return null;
+    return res.json() as Promise<BriefResult>;
+  } catch {
+    return null;
+  }
 }
 
 // Write the brief to Vercel Blob storage (overwrites the previous entry).
+// Silently skips if Blob isn't configured.
 async function writeCached(result: BriefResult): Promise<void> {
-  await put(BLOB_NAME, JSON.stringify(result), {
-    access: "public",
-    addRandomSuffix: false,
-    contentType: "application/json",
-  });
+  try {
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) return;
+
+    const { put } = await import("@vercel/blob");
+    await put(BLOB_NAME, JSON.stringify(result), {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: "application/json",
+      token,
+    });
+  } catch {
+    // Cache write failure is non-fatal — brief was still generated
+  }
 }
 
 export default async function handler(req: Req, res: Res): Promise<void> {
@@ -56,7 +70,6 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         res.status(200).json({ ...cached, error: null });
         return;
       }
-      // Cache miss (first run) — fall through to generate
     }
 
     const result = await generateBrief();
@@ -65,14 +78,12 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
 
-    // On error, try to serve stale cached data with an error note
-    try {
-      const stale = await readCached();
-      if (stale) {
-        res.status(200).json({ ...stale, error: msg });
-        return;
-      }
-    } catch { /* Blob also unavailable */ }
+    // Try to serve stale cached data with an error note rather than failing completely
+    const stale = await readCached();
+    if (stale) {
+      res.status(200).json({ ...stale, error: msg });
+      return;
+    }
 
     res.status(200).json({ text: null, generatedAt: null, error: msg });
   }
