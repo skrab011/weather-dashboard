@@ -2,6 +2,7 @@
 
 ## Working rules
 - Do not implement fixes, improvements, or build work unless explicitly directed to by the user. Diagnose, explain, and ask first.
+- Always provide full URLs for the user to copy and paste (e.g. https://weather-dashboard-five-umber.vercel.app/api/caic, not just /api/caic).
 
 Personal weather-consolidation PWA for two Colorado locations. Spec is locked (see `weather-forecast-overview.md` and `weather-pwa-planning.md` for full history/reasoning). This file is the working reference for build sessions.
 
