@@ -181,8 +181,7 @@ function parseLooperHtml(html: string): Array<Record<string, unknown>> {
 }
 
 // Fetch the point-forecast HTML page and extract the embedded series data.
-// Returns parsed rows plus a debug snapshot of the raw HTML for diagnosing parser failures.
-async function fetchPointForecast(): Promise<{ rows: Array<Record<string, unknown>>; debug: string }> {
+async function fetchPointForecast(): Promise<Array<Record<string, unknown>>> {
   const today = new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
   const url =
     `${LOOPER_BASE}/iptfcst/ptfcst.php` +
@@ -196,26 +195,7 @@ async function fetchPointForecast(): Promise<{ rows: Array<Record<string, unknow
   if (!res.ok) throw new Error(`CAIC point-forecast HTTP ${res.status}`);
 
   const html = await res.text();
-
-  // Diagnostic snapshot: first 800 chars + whether key tokens exist
-  const debug = JSON.stringify({
-    len: html.length,
-    hasTempSingle: html.includes("name: 'Temp'"),
-    hasTempDouble: html.includes('name: "Temp"'),
-    hasTempNoSpace: html.includes("name:'Temp'"),
-    hasSeriesKey:  html.includes("series"),
-    hasHighcharts: html.includes("Highcharts"),
-    snippet: html.slice(0, 800),
-  });
-
-  let rows: Array<Record<string, unknown>>;
-  try {
-    rows = parseLooperHtml(html);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw Object.assign(new Error(msg), { debug });
-  }
-  return { rows, debug };
+  return parseLooperHtml(html);
 }
 
 export default async function handler(_req: Req, res: Res): Promise<void> {
@@ -233,15 +213,11 @@ export default async function handler(_req: Req, res: Res): Promise<void> {
       ? (summaryResult.reason instanceof Error ? summaryResult.reason.message : String(summaryResult.reason))
       : null,
 
-    pointForecast: pointResult.status === "fulfilled" ? pointResult.value.rows : null,
+    pointForecast: pointResult.status === "fulfilled" ? pointResult.value : null,
     pointForecastError: pointResult.status === "rejected"
       ? (pointResult.reason instanceof Error ? pointResult.reason.message : String(pointResult.reason))
       : null,
-    pointForecastDebug: pointResult.status === "fulfilled"
-      ? pointResult.value.debug
-      : (pointResult.status === "rejected" && pointResult.reason?.debug ? pointResult.reason.debug : null),
 
     fetchedAt: new Date().toISOString(),
-    _v: 3,
   });
 }

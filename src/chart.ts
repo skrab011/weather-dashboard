@@ -42,7 +42,7 @@ const LOC_ELEV_FT: Record<string, number> = {
 };
 
 // CAIC's point-forecast grid cell sits at a higher elevation than the town sites.
-const CAIC_ELEV_FT = 9_091;
+const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
 
 // Design-system colours — must match style.css custom properties.
 const COLOR_NWS   = "#4a9eff"; // --accent
