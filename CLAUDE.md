@@ -79,6 +79,7 @@ Build in this order (not gated phases, but natural dependencies):
 7. Tomer embed — latest video + description
 8. Consensus brief — scheduled AI call (NWS + CAIC), caching, manual refresh
 9. Polish + harden — offline behavior, "last updated" stamps, loading/empty/error states, isolation pass
+   - Update service worker to skip all /api/ routes so the browser handles them via HTTP cache (Cache-Control headers set by serverless functions). Currently the SW intercepts same-origin API requests and returns null on iOS Safari when navigating to them directly.
 10. Install on phone + final tuning
 
 ## Notes
