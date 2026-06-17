@@ -100,17 +100,18 @@ async function fetchSummary(): Promise<{ issuedBy: string; bodyHtml: string; raw
     }) ?? null;
   }
 
-  // If we couldn't find the zone, surface the raw response so we can diagnose.
+  // If we couldn't find the zone, surface the raw response structure for diagnosis.
   if (!zone) {
-    throw new Error(
-      `CAIC zone not found. Keys in response: ${
-        Array.isArray(json)
-          ? (json as Array<Record<string, unknown>>).map((z) =>
-              String(z.zone_name ?? z.name ?? z.id ?? "?")
-            ).join(", ")
-          : typeof json
-      }`
-    );
+    let hint: string;
+    if (Array.isArray(json)) {
+      const arr = json as Array<Record<string, unknown>>;
+      hint = `array[${arr.length}], first item keys: ${Object.keys(arr[0] ?? {}).join(", ")}`;
+    } else if (json && typeof json === "object") {
+      hint = `object keys: ${Object.keys(json as object).join(", ")}`;
+    } else {
+      hint = String(json).slice(0, 200);
+    }
+    throw new Error(`CAIC zone not found. Response shape: ${hint}`);
   }
 
   // The write-up body may be in various fields depending on feed version.
@@ -138,9 +139,16 @@ async function fetchPointForecast(): Promise<Array<Record<string, unknown>>> {
     signal: AbortSignal.timeout(10_000),
   });
 
-  if (!res.ok) throw new Error(`CAIC point-forecast HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`CAIC point-forecast HTTP ${res.status} for ${url}`);
 
-  const json = await res.json() as unknown;
+  const text = await res.text();
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // Surface the first 300 chars so we can see what the server actually returned
+    throw new Error(`CAIC point-forecast non-JSON response: ${text.slice(0, 300)}`);
+  }
 
   if (Array.isArray(json)) return json as Array<Record<string, unknown>>;
 
