@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import type {
+  LocationAirQuality,
   NWSAlert,
   NWSGridpoint,
   NWSPeriod,
@@ -53,7 +54,6 @@ function fmtDay(iso: string): string {
 }
 
 // Normalise NWS wind speed string for display.
-// NWS returns "10 mph" or "10 to 15 mph"; we convert the latter to "10–15 mph".
 function fmtWind(raw: string): string {
   return raw.replace(" to ", "–");
 }
@@ -79,8 +79,6 @@ function skeletonCard(extraClass = ""): string {
 // ---------------------------------------------------------------------------
 // renderShell — called once. Writes the static HTML skeleton into #app and
 // attaches event listeners for the location tabs and hourly/7-day toggle.
-// The skeleton is painted synchronously before any network fetch starts, so
-// the user always sees the UI frame rather than a blank screen.
 // ---------------------------------------------------------------------------
 export function renderShell(): void {
   const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -112,6 +110,10 @@ export function renderShell(): void {
         ${skeletonCard()}
       </div>
 
+      <div id="air-quality-region">
+        ${skeletonCard()}
+      </div>
+
       <div id="hourly-region" class="view-hourly">
         ${skeletonCard()}
       </div>
@@ -140,8 +142,6 @@ export function renderShell(): void {
 
 // ---------------------------------------------------------------------------
 // renderAll — called by the store subscriber after every state mutation.
-// Syncs tab + toggle visual state, then re-renders all data cards for the
-// currently active location.
 // ---------------------------------------------------------------------------
 export function renderAll(): void {
   const loc = LOCATIONS[state.activeLocation];
@@ -162,15 +162,15 @@ export function renderAll(): void {
     btn.classList.toggle("toggle-btn--active", btn.dataset.view === state.activeView);
   });
 
-  // Render each card
   renderAlerts(weather.alerts);
-  renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes);
+  renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes, weather.airQuality, loc.id);
+  renderAirQuality(weather.airQuality, loc.id);
   renderHourly(weather.hourly);
   renderForecast(weather.forecast);
 }
 
 // ---------------------------------------------------------------------------
-// Alert banner — sits above all cards; hidden when there are no alerts.
+// Alert banner
 // ---------------------------------------------------------------------------
 function renderAlerts(result: SourceResult<NWSAlert[]>): void {
   const el = document.getElementById("alerts-region")!;
@@ -196,45 +196,48 @@ function renderAlerts(result: SourceResult<NWSAlert[]>): void {
 }
 
 // ---------------------------------------------------------------------------
-// Current conditions card — temperature, wind, sky, UV, snowfall, sun times.
-// Pulls from the first hourly period (current hour) + gridpoint time series.
+// Current conditions card — temperature (NWS + optional PA), wind, sky,
+// UV, snowfall, sun times.
 // ---------------------------------------------------------------------------
 function renderConditions(
   hourlyResult: SourceResult<NWSPeriod[]>,
   gridResult: SourceResult<NWSGridpoint>,
   sunTimes: SunTimes | null,
+  aqResult: SourceResult<LocationAirQuality>,
+  locId: string,
 ): void {
   const el = document.getElementById("conditions-region")!;
 
-  // Loading state — both sources still in flight
   if (!hourlyResult.data && !hourlyResult.error && !gridResult.data && !gridResult.error) {
     el.innerHTML = skeletonCard();
     return;
   }
 
-  const now = (hourlyResult.data ?? hourlyResult.lastGoodData)?.[0];
-  const grid = gridResult.data ?? gridResult.lastGoodData;
+  const now   = (hourlyResult.data ?? hourlyResult.lastGoodData)?.[0];
+  const grid  = gridResult.data ?? gridResult.lastGoodData;
+  const aq    = aqResult.data ?? aqResult.lastGoodData;
 
-  // Sum expected snowfall over the next 24 hours (returns 0 in summer, hidden if so)
   const snowNext24 = grid
-    ? sumSeriesNextHours(
-        grid.snowfallAmount.values,
-        24,
-        grid.snowfallAmount.uom,
-      )
+    ? sumSeriesNextHours(grid.snowfallAmount.values, 24, grid.snowfallAmount.uom)
     : null;
-
-  // UV index value for the current time window
   const uvNow = grid ? currentSeriesValue(grid.uVIndex.values) : null;
 
   const rows: string[] = [];
 
   if (now) {
     const windDeg = WIND_DIR_DEG[now.windDirection] ?? 0;
+
+    // Show PurpleAir corrected temp beside NWS temp for the home location only.
+    // The PA value is additive — it never replaces the authoritative NWS reading.
+    const paTemp =
+      locId === "home" && aq?.tempF !== null && aq?.tempF !== undefined
+        ? `<span class="temp-pa">/ ${Math.round(aq.tempF)}°F PA</span>`
+        : "";
+
     rows.push(`
       <div class="cond-row">
         <span class="cond-label">Temp</span>
-        <span class="cond-value">${now.temperature}°F</span>
+        <span class="cond-value">${now.temperature}°F ${paTemp}</span>
       </div>
       <div class="cond-row">
         <span class="cond-label">Wind</span>
@@ -259,7 +262,6 @@ function renderConditions(
     `);
   }
 
-  // Only show snowfall when there is meaningful accumulation expected
   if (snowNext24 !== null && snowNext24 >= 0.1) {
     rows.push(`
       <div class="cond-row">
@@ -295,19 +297,141 @@ function renderConditions(
 }
 
 // ---------------------------------------------------------------------------
-// Hourly forecast strip — horizontally scrollable, next 24 hours.
-// Hidden when the 7-day view is active (CSS data-view attribute).
+// Air quality card — PM2.5 (EPA-corrected PurpleAir), AirNow cross-check,
+// divergence flag, 24-hour sparkline trend.
+// PA temperature is shown in the conditions card, not here.
+// ---------------------------------------------------------------------------
+function renderAirQuality(
+  result: SourceResult<LocationAirQuality>,
+  locId: string,
+): void {
+  const el = document.getElementById("air-quality-region")!;
+
+  // Loading state
+  if (!result.data && !result.error && !result.lastGoodData) {
+    el.innerHTML = skeletonCard();
+    return;
+  }
+
+  // Hard error with no fallback
+  if (result.error && !result.lastGoodData) {
+    el.innerHTML = `
+      <section class="card card--error">
+        <h2 class="card-title">Air Quality</h2>
+        <p class="card-empty">Could not load air quality data.</p>
+        ${cardFooter(null, result.error)}
+      </section>`;
+    return;
+  }
+
+  const d = (result.data ?? result.lastGoodData)!;
+  const ts = result.lastUpdated ?? result.lastGoodUpdated;
+  const rows: string[] = [];
+
+  if (d.sensorCount === 0 || d.pm25 === null) {
+    // No usable PurpleAir sensors in range
+    rows.push(`
+      <div class="cond-row">
+        <span class="cond-label">PM2.5</span>
+        <span class="cond-value cond-value--muted">No nearby sensors</span>
+      </div>
+    `);
+  } else {
+    // PM2.5 value — flagged red when PurpleAir and AirNow significantly disagree
+    const flagged = d.divergent;
+    rows.push(`
+      <div class="cond-row">
+        <span class="cond-label">PM2.5</span>
+        <span class="cond-value${flagged ? " pm-value--flagged" : ""}">
+          ${d.pm25.toFixed(1)} µg/m³
+          ${flagged ? '<span class="pm-flag" title="PurpleAir and AirNow readings diverge significantly">⚠ Sources differ</span>' : ""}
+        </span>
+      </div>
+      <div class="cond-row cond-row--sparkline">
+        <span class="cond-label">24-hr trend</span>
+        ${renderSparkline(d.trend, flagged)}
+      </div>
+    `);
+  }
+
+  // AirNow cross-check row
+  if (d.airnowPm25 !== null) {
+    rows.push(`
+      <div class="cond-row">
+        <span class="cond-label">AirNow (EPA)</span>
+        <span class="cond-value">${d.airnowPm25.toFixed(1)} µg/m³</span>
+      </div>
+    `);
+  } else if (d.airnowError) {
+    rows.push(`
+      <div class="cond-row">
+        <span class="cond-label">AirNow</span>
+        <span class="cond-value cond-value--muted">Unavailable</span>
+      </div>
+    `);
+  }
+
+  // Sensor count — useful context, especially when flagged
+  if (d.sensorCount > 0) {
+    rows.push(`
+      <div class="cond-row">
+        <span class="cond-label">Sensors</span>
+        <span class="cond-value cond-value--muted">${d.sensorCount} nearby</span>
+      </div>
+    `);
+  }
+
+  // Only show PA temp label here for office (home already shows it in Now card).
+  // For office we omit it entirely per spec (no PA temp for office).
+  void locId; // locId reserved for future per-location customisation
+
+  el.innerHTML = `
+    <section class="card${result.error ? " card--error" : ""}">
+      <h2 class="card-title">Air Quality</h2>
+      ${rows.join("")}
+      ${cardFooter(ts ? new Date(ts instanceof Date ? ts : ts) : null, result.error)}
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Sparkline — 5 bars, oldest (24hr) to newest (10min), left to right.
+// Heights are proportional to PM2.5 value, bottom-aligned via CSS flex.
+// Rendered as pure HTML/CSS with no chart library.
+// ---------------------------------------------------------------------------
+function renderSparkline(trend: (number | null)[], flagged: boolean): string {
+  // Scale bars relative to the maximum non-null value in the trend
+  const nonNull = trend.filter((v): v is number => v !== null);
+  const max = nonNull.length > 0 ? Math.max(...nonNull) : 1;
+  const MAX_PX = 32; // tallest bar height in pixels
+  const MIN_PX = 4;  // minimum height so even zero reads are visible
+
+  const bars = trend.map((v) => {
+    const height = v !== null
+      ? Math.max(MIN_PX, Math.round((v / Math.max(max, 1)) * MAX_PX))
+      : MIN_PX;
+    const opacity = v !== null ? "1" : "0.25";
+    return `<div class="sparkline-bar" style="height:${height}px;opacity:${opacity}"></div>`;
+  });
+
+  return `
+    <div class="sparkline${flagged ? " sparkline--flagged" : ""}"
+         aria-label="PM2.5 trend oldest to newest, 24h 6h 1h 30min 10min">
+      ${bars.join("")}
+    </div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Hourly forecast strip — next 24 hours, horizontally scrollable.
 // ---------------------------------------------------------------------------
 function renderHourly(result: SourceResult<NWSPeriod[]>): void {
   const el = document.getElementById("hourly-region")!;
 
-  // Loading
   if (!result.data && !result.error && !result.lastGoodData) {
     el.innerHTML = skeletonCard("view-hourly");
     return;
   }
 
-  // Hard error with no fallback data
   if (result.error && !result.lastGoodData) {
     el.innerHTML = `
       <section class="card card--error view-hourly">
@@ -319,9 +443,8 @@ function renderHourly(result: SourceResult<NWSPeriod[]>): void {
   }
 
   const periods = (result.data ?? result.lastGoodData)!;
-  // Show only the next 24 hours — 156 hourly periods would be overwhelming
-  const cutoff = Date.now() + 24 * 3_600_000;
-  const next24 = periods.filter((p) => new Date(p.startTime).getTime() < cutoff);
+  const cutoff  = Date.now() + 24 * 3_600_000;
+  const next24  = periods.filter((p) => new Date(p.startTime).getTime() < cutoff);
 
   el.innerHTML = `
     <section class="card view-hourly${result.error ? " card--error" : ""}">
@@ -348,56 +471,39 @@ function renderHourly(result: SourceResult<NWSPeriod[]>): void {
 }
 
 // ---------------------------------------------------------------------------
-// 7-day forecast — one row per calendar day, combining day + night periods.
-// Hidden when the hourly view is active (CSS data-view attribute).
+// 7-day forecast — combined day/night rows, no icons, with wind column.
 // ---------------------------------------------------------------------------
 
 interface ForecastPair {
-  day: NWSPeriod | null;   // daytime period (may be absent if day starts at night)
-  night: NWSPeriod | null; // overnight period (may be absent for the last day)
+  day: NWSPeriod | null;
+  night: NWSPeriod | null;
 }
 
-// Group flat NWS periods into day/night pairs.
-// NWS returns alternating daytime/nighttime periods, but can start with a
-// nighttime period (e.g. "Tonight" when fetched in the afternoon).
-// In that case the first pair has day: null and night: <tonight period>.
 function pairPeriods(periods: NWSPeriod[]): ForecastPair[] {
   const pairs: ForecastPair[] = [];
   let i = 0;
 
-  // If the first period is nighttime, it stands alone as a night-only row
   if (periods.length > 0 && !periods[0].isDaytime) {
     pairs.push({ day: null, night: periods[0] });
     i = 1;
   }
 
-  // Walk the rest in day/night pairs
   while (i < periods.length) {
-    const day = periods[i].isDaytime ? periods[i] : null;
+    const day   = periods[i].isDaytime ? periods[i] : null;
     const night = periods[i + 1] && !periods[i + 1].isDaytime ? periods[i + 1] : null;
     pairs.push({ day, night });
-    i += (day ? 1 : 0) + (night ? 1 : 0) || 1; // advance at least 1 to avoid infinite loop
+    i += (day ? 1 : 0) + (night ? 1 : 0) || 1;
   }
 
   return pairs;
 }
 
-// Extract a numeric wind speed from NWS strings like "10 mph" or "10 to 15 mph".
-// Returns just the number(s), e.g. "10" or "10–15".
 function windMph(raw: string): string {
   const stripped = raw.replace(/ mph/gi, "").trim();
-  if (/^\d+$/.test(stripped)) return stripped;
-  // "10 to 15" → "10–15"
-  return stripped.replace(/\s+to\s+/i, "–");
+  return /^\d+$/.test(stripped) ? stripped : stripped.replace(/\s+to\s+/i, "–");
 }
 
-// Render one stacked cell: top line = day value, bottom line = night value.
-// If a period is absent, that line is rendered as an em dash.
-function stackedCell(
-  className: string,
-  dayVal: string,
-  nightVal: string,
-): string {
+function stackedCell(className: string, dayVal: string, nightVal: string): string {
   return `
     <span class="${className}">
       <span class="fc-day-val">${dayVal}</span>
@@ -408,13 +514,11 @@ function stackedCell(
 function renderForecast(result: SourceResult<NWSPeriod[]>): void {
   const el = document.getElementById("forecast-region")!;
 
-  // Loading
   if (!result.data && !result.error && !result.lastGoodData) {
     el.innerHTML = skeletonCard("view-7day");
     return;
   }
 
-  // Hard error with no fallback
   if (result.error && !result.lastGoodData) {
     el.innerHTML = `
       <section class="card card--error view-7day">
@@ -426,30 +530,22 @@ function renderForecast(result: SourceResult<NWSPeriod[]>): void {
   }
 
   const periods = (result.data ?? result.lastGoodData)!;
-  const pairs = pairPeriods(periods);
+  const pairs   = pairPeriods(periods);
 
   const rows = pairs.map(({ day, night }) => {
-    // Date label: use the daytime period's date, or "Tonight" for night-only rows
-    const dateLabel = day ? fmtDay(day.startTime) : "Tonight";
+    const dateLabel  = day ? fmtDay(day.startTime) : "Tonight";
+    const tempDay    = day   ? `${day.temperature}°`   : "—";
+    const tempNight  = night ? `${night.temperature}°`  : "—";
+    const descDay    = day   ? day.shortForecast   : "—";
+    const descNight  = night ? night.shortForecast  : "—";
+    const precipDay  = day   ? `${day.probabilityOfPrecipitation?.value   ?? 0}%` : "—";
+    const precipNight = night ? `${night.probabilityOfPrecipitation?.value ?? 0}%` : "—";
 
-    // Temperature: day high / night low, stacked
-    const tempDay   = day   ? `${day.temperature}°`   : "—";
-    const tempNight = night ? `${night.temperature}°`  : "—";
-
-    // Outlook text, stacked
-    const descDay   = day   ? day.shortForecast   : "—";
-    const descNight = night ? night.shortForecast  : "—";
-
-    // Wind: direction arrow + numeric mph, stacked
     const windCell = (p: NWSPeriod | null): string => {
       if (!p) return "—";
       const deg = WIND_DIR_DEG[p.windDirection] ?? 0;
       return `<span class="wind-arrow" style="transform:rotate(${deg}deg)" aria-hidden="true">↑</span>${windMph(p.windSpeed)} mph`;
     };
-
-    // Precipitation %, stacked
-    const precipDay   = day   ? `${day.probabilityOfPrecipitation?.value   ?? 0}%` : "—";
-    const precipNight = night ? `${night.probabilityOfPrecipitation?.value ?? 0}%` : "—";
 
     return `
       <div class="forecast-row" role="listitem">

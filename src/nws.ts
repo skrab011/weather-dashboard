@@ -180,11 +180,14 @@ async function settle<T>(
 // If /points fails (called before this), the caller handles the error and
 // this function is never reached for that location.
 // ---------------------------------------------------------------------------
+// Return type excludes sunTimes (computed separately) and airQuality (separate source)
+type NWSWeatherResult = Omit<LocationWeather, "sunTimes" | "airQuality">;
+
 export async function fetchAllForLocation(
   location: Location,
   meta: NWSPointsMeta,
   prev: LocationWeather,
-): Promise<Omit<LocationWeather, "sunTimes">> {
+): Promise<NWSWeatherResult> {
   const [forecast, hourly, gridpoint, alerts] = await Promise.all([
     settle(fetchForecast(meta.forecastUrl), prev.forecast),
     settle(fetchHourly(meta.forecastHourlyUrl), prev.hourly),

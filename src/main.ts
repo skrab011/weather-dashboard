@@ -6,12 +6,13 @@
 //   2. Register the store subscriber (so state changes trigger re-renders)
 //   3. Do the initial render (all cards in loading/skeleton state)
 //   4. Calculate sun times synchronously and push them into state
-//   5. Fetch NWS data for both locations in parallel
+//   5. Fetch NWS + air quality data for both locations in parallel
 // ---------------------------------------------------------------------------
 
 import "./style.css";
 import { LOCATIONS } from "./locations";
 import { fetchPoints, fetchAllForLocation } from "./nws";
+import { fetchAirQuality } from "./airQuality";
 import { calcSunTimes } from "./sun";
 import { state, subscribe, updateLocationWeather } from "./store";
 import { renderShell, renderAll } from "./render";
@@ -32,25 +33,35 @@ async function boot(): Promise<void> {
       // Sun times are pure math — calculate immediately so sunrise/sunset
       // appears in the "Now" card before the network calls return
       const sunTimes = calcSunTimes(loc.lat, loc.lon, new Date());
-      updateLocationWeather(loc.id, {
-        ...state.weather[loc.id],
-        sunTimes,
-      });
+      updateLocationWeather(loc.id, { ...state.weather[loc.id], sunTimes });
 
-      try {
-        // /points must succeed first — it returns the forecast and gridpoint URLs.
-        // If it fails, all NWS cards for this location enter error state.
-        const meta = await fetchPoints(loc.lat, loc.lon);
+      // NWS and air quality fetches run in parallel for each location
+      const locId = loc.id as "home" | "office";
 
-        // Fetch all four endpoints in parallel; each is independently failure-isolated
-        const weatherData = await fetchAllForLocation(loc, meta, state.weather[loc.id]);
+      const [nwsOutcome, aqResult] = await Promise.allSettled([
+        // NWS: /points first, then all four endpoints
+        (async () => {
+          const meta = await fetchPoints(loc.lat, loc.lon);
+          return fetchAllForLocation(loc, meta, state.weather[loc.id]);
+        })(),
+        fetchAirQuality(locId, state.weather[loc.id].airQuality),
+      ]);
 
-        updateLocationWeather(loc.id, { ...weatherData, sunTimes });
-      } catch (err) {
-        // /points itself failed — mark all NWS sources as errored for this location.
-        // Sun times are still available since they don't depend on the network.
+      // Build the merged LocationWeather, carrying the already-set sunTimes
+      if (nwsOutcome.status === "fulfilled") {
+        updateLocationWeather(loc.id, {
+          ...nwsOutcome.value,
+          sunTimes,
+          airQuality: aqResult.status === "fulfilled"
+            ? aqResult.value
+            : state.weather[loc.id].airQuality,
+        });
+      } else {
+        // /points (or subsequent NWS calls) failed — mark NWS as errored
         const errMsg =
-          err instanceof Error ? err.message : "Could not reach NWS";
+          nwsOutcome.reason instanceof Error
+            ? nwsOutcome.reason.message
+            : "Could not reach NWS";
         const failed = {
           data: null as null,
           error: errMsg,
@@ -64,6 +75,28 @@ async function boot(): Promise<void> {
           gridpoint: failed,
           alerts:    failed,
           sunTimes,
+          // Air quality is independent — still use its result even if NWS failed
+          airQuality: aqResult.status === "fulfilled"
+            ? aqResult.value
+            : state.weather[loc.id].airQuality,
+        });
+      }
+
+      // If air quality fetch failed after NWS succeeded, patch it in separately
+      if (nwsOutcome.status === "fulfilled" && aqResult.status === "rejected") {
+        const errMsg =
+          aqResult.reason instanceof Error
+            ? aqResult.reason.message
+            : "Could not load air quality";
+        updateLocationWeather(loc.id, {
+          ...state.weather[loc.id],
+          airQuality: {
+            data: null,
+            error: errMsg,
+            lastUpdated: null,
+            lastGoodData: state.weather[loc.id].airQuality.lastGoodData,
+            lastGoodUpdated: state.weather[loc.id].airQuality.lastGoodUpdated,
+          },
         });
       }
     }),

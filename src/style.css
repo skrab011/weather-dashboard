@@ -305,6 +305,11 @@ body {
   border-bottom: none;
 }
 
+/* Sparkline row needs to align top so the bars sit flush with the label */
+.cond-row--sparkline {
+  align-items: center;
+}
+
 .cond-label {
   font-size: 0.875rem;
   color: var(--fg-secondary);
@@ -316,6 +321,57 @@ body {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+/* Muted variant for "No nearby sensors", sensor count, "Unavailable", etc. */
+.cond-value--muted {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* PA temp annotation beside NWS temp in the Now card (home only).
+   Smaller and muted so the NWS value reads as primary. */
+.temp-pa {
+  font-size: 0.8rem;
+  color: var(--fg-secondary);
+  font-weight: 400;
+}
+
+/* PM2.5 value turns red when PurpleAir and AirNow significantly diverge */
+.pm-value--flagged {
+  color: var(--danger);
+}
+
+/* Small warning badge that appears beside the flagged PM2.5 value */
+.pm-flag {
+  font-size: 0.72rem;
+  color: var(--danger);
+  font-weight: 400;
+  margin-left: 0.25rem;
+}
+
+/* =========================================================================
+   PM2.5 sparkline — 5 bars, oldest (24hr) to newest (10min), left to right.
+   Heights are set via inline style; CSS handles layout and colour only.
+   ========================================================================= */
+.sparkline {
+  display: flex;
+  align-items: flex-end; /* bottom-align bars so they grow upward */
+  gap: 3px;
+  height: 36px;
+}
+
+.sparkline-bar {
+  width: 10px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+  transition: height 0.3s ease;
+  flex-shrink: 0;
+}
+
+/* When divergent, bars turn red to match the flagged PM2.5 value */
+.sparkline--flagged .sparkline-bar {
+  background: var(--danger);
 }
 
 /* Rotated directional arrow for wind — rotated via inline style to match bearing */

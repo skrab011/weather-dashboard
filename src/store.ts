@@ -10,6 +10,7 @@
 
 import type {
   AppState,
+  LocationAirQuality,
   LocationWeather,
   NWSAlert,
   NWSGridpoint,
@@ -31,14 +32,15 @@ function emptyResult<T>(): SourceResult<T> {
   };
 }
 
-// Empty weather for one location — all four sources start in loading state.
+// Empty weather for one location — all sources start in loading state.
 function emptyLocationWeather(): LocationWeather {
   return {
-    forecast: emptyResult<NWSPeriod[]>(),
-    hourly:   emptyResult<NWSPeriod[]>(),
-    gridpoint: emptyResult<NWSGridpoint>(),
-    alerts:   emptyResult<NWSAlert[]>(),
-    sunTimes: null,
+    forecast:   emptyResult<NWSPeriod[]>(),
+    hourly:     emptyResult<NWSPeriod[]>(),
+    gridpoint:  emptyResult<NWSGridpoint>(),
+    alerts:     emptyResult<NWSAlert[]>(),
+    sunTimes:   null,
+    airQuality: emptyResult<LocationAirQuality>(),
   };
 }
 

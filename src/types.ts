@@ -92,13 +92,52 @@ export interface SourceResult<T> {
   lastGoodUpdated: Date | null;
 }
 
+// ---------------------------------------------------------------------------
+// Air quality types (PurpleAir + AirNow)
+// ---------------------------------------------------------------------------
+
+// Processed air quality data for one location, returned by /api/air-quality.
+// All corrections (EPA PM2.5, temperature offset) are applied server-side.
+export interface LocationAirQuality {
+  // EPA-corrected PM2.5, averaged across all valid nearby PurpleAir sensors.
+  // null when no sensors are within range or all failed quality checks.
+  pm25: number | null;
+
+  // Five trend data points, oldest → newest:
+  // [24-hr avg, 6-hr avg, 60-min avg, 30-min avg, 10-min avg]
+  // Each is EPA-corrected using the current RH from the sensor set.
+  trend: (number | null)[];
+
+  // Corrected PA temperature (raw − 8°F). Populated for home location only;
+  // null for office (spec: hyperlocal temp for home only).
+  tempF: number | null;
+
+  // AirNow PM2.5 reading from the nearest official EPA monitor (within 25 mi).
+  airnowPm25: number | null;
+
+  // True when |PA − AirNow| > 5 µg/m³ AND > 10% of the larger value.
+  // Drives the red flag in the UI.
+  divergent: boolean;
+
+  // Number of PurpleAir sensors that passed quality checks and contributed
+  // to the pm25 average. 0 means no usable sensors were found.
+  sensorCount: number;
+
+  // Per-source error strings; non-null when that source failed entirely.
+  purpleAirError: string | null;
+  airnowError: string | null;
+
+  fetchedAt: string; // ISO 8601 timestamp of when this data was fetched
+}
+
 // All weather data for one location, one result per source.
 export interface LocationWeather {
-  forecast: SourceResult<NWSPeriod[]>;
-  hourly: SourceResult<NWSPeriod[]>;
-  gridpoint: SourceResult<NWSGridpoint>;
-  alerts: SourceResult<NWSAlert[]>;
-  sunTimes: SunTimes | null; // calculated locally, always available
+  forecast:   SourceResult<NWSPeriod[]>;
+  hourly:     SourceResult<NWSPeriod[]>;
+  gridpoint:  SourceResult<NWSGridpoint>;
+  alerts:     SourceResult<NWSAlert[]>;
+  sunTimes:   SunTimes | null;        // calculated locally, always available
+  airQuality: SourceResult<LocationAirQuality>;
 }
 
 // The two possible forecast views.
