@@ -8,20 +8,24 @@
 // Two endpoints are fetched in parallel and reported independently so a
 // failure in one never suppresses the other:
 //
-//   1. Weather Summary write-up (HTML)
-//      https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=/api/products/...
-//      Zone: VAI (Vail & Summit County) — covers both Silverthorne and Frisco.
+//   1. Weather Summary write-up (JSON array, statewide)
+//      https://avalanche.state.co.us/api-proxy/caic_data_api
+//        ?_api_proxy_uri=/api/v2/zone_weather_forecasts/statewide/current
+//      We filter the statewide array for the Vail & Summit County zone,
+//      which covers both Silverthorne and Frisco.
 //
-//   2. Point-forecast Highcharts JSON
-//      https://avalanche.state.co.us/api-proxy/avid?_api_proxy_uri=/api/mountain-weather/...
-//      A time-series of temperature, precipitation, snowfall, and wind values.
+//   2. Point-forecast time-series
+//      https://looper.avalanche.state.co.us/iptfcst/ptfcst.php
+//        ?idate=YYYY-MM-DD&res=4&lat=...&lon=...
+//      A time-series of temperature, precipitation, snowfall, and wind.
+//      Used by the overlay chart (workstream 6).
 //
 // The response is cached at the CDN edge for 15 minutes (s-maxage=900) with a
 // 30-minute stale-while-revalidate window so stale data is served instantly
 // while a fresh fetch happens in the background.
 //
-// Security: the HTML body is stripped of <script> tags and on* attributes
-// server-side so it can be safely rendered as innerHTML in the browser.
+// Security: any HTML body content is stripped of <script> tags and on*
+// attributes server-side before being sent to the browser.
 // ---------------------------------------------------------------------------
 
 type Req = { method?: string };
@@ -31,76 +35,106 @@ type Res = {
   setHeader: (name: string, value: string) => void;
 };
 
-// CAIC API proxy base URL — all requests go through their public API proxy.
-const CAIC_BASE = "https://avalanche.state.co.us/api-proxy/avid";
+// CAIC API proxy — discovered from network inspection of avalanche.state.co.us/weather.
+const CAIC_PROXY = "https://avalanche.state.co.us/api-proxy/caic_data_api";
 
-// Zone identifier for Vail & Summit County (covers both our locations).
-const ZONE_ID = "VAI";
+// Point-forecast server — separate host from the main site.
+const LOOPER_BASE = "https://looper.avalanche.state.co.us";
 
-// Elevation point near Silverthorne used for the point-forecast feed.
-// CAIC's point-forecast is grid-based; this puts us in the right grid cell.
+// Zone keywords to match against the statewide feed for Vail & Summit County.
+// We match loosely so a minor label change doesn't lose the zone entirely.
+const ZONE_KEYWORDS = ["vail", "summit"];
+
+// Elevation point near Silverthorne used for the point-forecast grid cell.
 const POINT_LAT = 39.619625;
 const POINT_LON = -106.090422;
 
-// Strip <script> blocks and inline event handlers from untrusted HTML before
-// sending it to the browser. This is a belt-and-suspenders measure since
-// CAIC is a government site, but the feed is undocumented and could change.
+// Headers that mimic a browser referer so CAIC's proxy allows server-side requests.
+const CAIC_HEADERS: HeadersInit = {
+  "User-Agent": "weather-dashboard/1.0 (personal app; jskraba0601@gmail.com)",
+  "Referer": "https://avalanche.state.co.us/",
+  "Origin": "https://avalanche.state.co.us",
+};
+
+// Strip <script> blocks and inline event handlers from untrusted HTML.
 function sanitiseHtml(html: string): string {
   return html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, "");
 }
 
-// Extract the "Issued by / Day, Date, Time" freshness line from the HTML body.
-// CAIC writes this as the first non-empty line or in a recognisable pattern.
-// We try several patterns so a minor format change doesn't lose it entirely.
-function extractIssuedBy(html: string): string {
-  // Strip all tags to get plain text for the regex search
-  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+// Extract the "Issued by / Day, Date, Time" freshness line from HTML or plain text.
+function extractIssuedBy(text: string): string {
+  const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-  // Pattern 1: "Issued by <name> / <day>, <date>, <time>"
-  const m1 = text.match(/Issued by[^/]+\/[^/\n]+(,\s*\d{1,2}:\d{2}\s*(?:AM|PM)[^.\n]*)?/i);
+  const m1 = plain.match(/Issued by[^/]+\/[^/\n]+(,\s*\d{1,2}:\d{2}\s*(?:AM|PM)[^.\n]*)?/i);
   if (m1) return m1[0].trim();
 
-  // Pattern 2: "Issued: <date/time>"
-  const m2 = text.match(/Issued:\s*[^\n.]+/i);
+  const m2 = plain.match(/Issued:\s*[^\n.]+/i);
   if (m2) return m2[0].trim();
 
-  // Fallback: let the UI show nothing rather than show garbage
   return "";
 }
 
-// Fetch the CAIC Weather Summary write-up for the Vail & Summit zone.
-async function fetchSummary(): Promise<{ issuedBy: string; bodyHtml: string }> {
-  const uri = encodeURIComponent(
-    `/api/products/all-products?zone_id=${ZONE_ID}&type=weather_summary&published=1`
-  );
-  const res = await fetch(`${CAIC_BASE}?_api_proxy_uri=${uri}`, {
-    headers: { "User-Agent": "weather-dashboard/1.0 (personal app; jskraba0601@gmail.com)" },
+// Fetch the statewide zone weather forecast and find the Vail & Summit zone.
+// Returns the raw response alongside the matched zone so the caller can
+// log the shape if zone matching fails — helps diagnose future feed changes.
+async function fetchSummary(): Promise<{ issuedBy: string; bodyHtml: string; rawZone: unknown }> {
+  const uri = encodeURIComponent("/api/v2/zone_weather_forecasts/statewide/current");
+  const res = await fetch(`${CAIC_PROXY}?_api_proxy_uri=${uri}`, {
+    headers: CAIC_HEADERS,
     signal: AbortSignal.timeout(10_000),
   });
 
   if (!res.ok) throw new Error(`CAIC summary HTTP ${res.status}`);
 
-  const json = await res.json() as Array<{ product_body?: string; body?: string }>;
+  const json = await res.json() as unknown;
 
-  // The feed returns an array; we want the first (most recent) entry.
-  const raw = (json[0]?.product_body ?? json[0]?.body ?? "") as string;
-  const bodyHtml = sanitiseHtml(raw);
-  const issuedBy = extractIssuedBy(raw);
+  // The statewide feed is expected to be an array of zone forecast objects.
+  // Find the one whose name/id matches Vail & Summit County.
+  let zone: Record<string, unknown> | null = null;
+  if (Array.isArray(json)) {
+    zone = (json as Array<Record<string, unknown>>).find((z) => {
+      const name = String(z.zone_name ?? z.name ?? z.id ?? "").toLowerCase();
+      return ZONE_KEYWORDS.some((kw) => name.includes(kw));
+    }) ?? null;
+  }
 
-  return { issuedBy, bodyHtml };
+  // If we couldn't find the zone, surface the raw response so we can diagnose.
+  if (!zone) {
+    throw new Error(
+      `CAIC zone not found. Keys in response: ${
+        Array.isArray(json)
+          ? (json as Array<Record<string, unknown>>).map((z) =>
+              String(z.zone_name ?? z.name ?? z.id ?? "?")
+            ).join(", ")
+          : typeof json
+      }`
+    );
+  }
+
+  // The write-up body may be in various fields depending on feed version.
+  const rawBody = String(
+    zone.weather_summary ?? zone.product_body ?? zone.body ?? zone.forecast_body ?? ""
+  );
+  const bodyHtml = sanitiseHtml(rawBody);
+  const issuedBy = extractIssuedBy(rawBody) || String(zone.issued_by ?? zone.forecaster ?? "");
+
+  return { issuedBy, bodyHtml, rawZone: zone };
 }
 
-// Fetch the CAIC point-forecast Highcharts JSON for our lat/lon.
-// The feed returns an object with series arrays keyed by field name.
-// We normalise it into a flat array of rows for the overlay chart (WS6).
+// Fetch the point-forecast time-series from looper.avalanche.state.co.us.
+// Format discovered from CAIC's interactive weather map.
 async function fetchPointForecast(): Promise<Array<Record<string, unknown>>> {
-  const uri = encodeURIComponent(
-    `/api/mountain-weather/point-forecast?lat=${POINT_LAT}&lon=${POINT_LON}`
-  );
-  const res = await fetch(`${CAIC_BASE}?_api_proxy_uri=${uri}`, {
-    headers: { "User-Agent": "weather-dashboard/1.0 (personal app; jskraba0601@gmail.com)" },
+  // idate must be today's date in YYYY-MM-DD (Mountain Time approximation via UTC-6).
+  const today = new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
+
+  const url =
+    `${LOOPER_BASE}/iptfcst/ptfcst.php` +
+    `?idate=${today}&res=4&lat=${POINT_LAT}&lon=${POINT_LON}`;
+
+  const res = await fetch(url, {
+    headers: CAIC_HEADERS,
     signal: AbortSignal.timeout(10_000),
   });
 
@@ -108,11 +142,9 @@ async function fetchPointForecast(): Promise<Array<Record<string, unknown>>> {
 
   const json = await res.json() as unknown;
 
-  // If CAIC returns a flat array of row objects, pass through as-is.
   if (Array.isArray(json)) return json as Array<Record<string, unknown>>;
 
-  // If CAIC returns Highcharts-style {series: [{name, data:[...]}, ...], xAxis: {categories: [...]}},
-  // pivot it into row objects. This is the format observed in 2024/2025.
+  // Highcharts pivot format: {series: [{name, data:[...]}, ...], xAxis: {categories: [...]}}
   const obj = json as Record<string, unknown>;
   if (obj.series && obj.xAxis) {
     const categories = (obj.xAxis as { categories?: string[] }).categories ?? [];
@@ -128,26 +160,21 @@ async function fetchPointForecast(): Promise<Array<Record<string, unknown>>> {
 }
 
 export default async function handler(_req: Req, res: Res): Promise<void> {
-  // Aggressive CDN caching: serve stale immediately while refreshing in background.
-  // 15-minute fresh window is appropriate for mountain weather data.
   res.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=1800");
 
-  // Fetch both endpoints in parallel; isolate failures from each other.
   const [summaryResult, pointResult] = await Promise.allSettled([
     fetchSummary(),
     fetchPointForecast(),
   ]);
 
   res.status(200).json({
-    // Summary fields (null on failure, error string explains why)
-    issuedBy:     summaryResult.status === "fulfilled" ? summaryResult.value.issuedBy  : null,
-    bodyHtml:     summaryResult.status === "fulfilled" ? summaryResult.value.bodyHtml   : null,
+    issuedBy: summaryResult.status === "fulfilled" ? summaryResult.value.issuedBy : null,
+    bodyHtml: summaryResult.status === "fulfilled" ? summaryResult.value.bodyHtml : null,
     summaryError: summaryResult.status === "rejected"
       ? (summaryResult.reason instanceof Error ? summaryResult.reason.message : String(summaryResult.reason))
       : null,
 
-    // Point-forecast (null on failure)
-    pointForecast:      pointResult.status === "fulfilled" ? pointResult.value : null,
+    pointForecast: pointResult.status === "fulfilled" ? pointResult.value : null,
     pointForecastError: pointResult.status === "rejected"
       ? (pointResult.reason instanceof Error ? pointResult.reason.message : String(pointResult.reason))
       : null,
