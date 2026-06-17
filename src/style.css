@@ -330,10 +330,11 @@ body {
 }
 
 /* PA temp annotation beside NWS temp in the Now card (home only).
-   Smaller and muted so the NWS value reads as primary. */
+   Lavender hue is a subtle nod to PurpleAir; kept small so the NWS
+   value reads as the primary temperature. */
 .temp-pa {
   font-size: 0.8rem;
-  color: var(--fg-secondary);
+  color: #b09edc;
   font-weight: 400;
 }
 

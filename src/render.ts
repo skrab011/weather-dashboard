@@ -231,7 +231,7 @@ function renderConditions(
     // The PA value is additive — it never replaces the authoritative NWS reading.
     const paTemp =
       locId === "home" && aq?.tempF !== null && aq?.tempF !== undefined
-        ? `<span class="temp-pa">/ ${Math.round(aq.tempF)}°F PA</span>`
+        ? `<span class="temp-pa">${Math.round(aq.tempF)}°F</span>`
         : "";
 
     rows.push(`
