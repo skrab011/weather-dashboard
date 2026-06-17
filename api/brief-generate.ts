@@ -7,7 +7,10 @@
 // The Anthropic API key never leaves this function — it stays in server memory.
 // ---------------------------------------------------------------------------
 
-import type { CAICPointForecastRow, NWSAlert, NWSPeriod } from "../src/types";
+// Inline minimal types to avoid cross-directory imports that confuse Vercel's bundler
+interface NWSPeriod { startTime: string; temperature: number; shortForecast: string; windSpeed: string; windDirection: string; probabilityOfPrecipitation?: { value: number | null } }
+interface NWSAlert  { event: string; headline: string; expires?: string }
+interface CAICPointForecastRow { dateTime: string; tmpF: number | null; windSpeedMph: number | null; precipIn: number | null; snowIn: number | null; windGustMph: number | null; windDir: string | null }
 
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const NWS_BASE      = "https://api.weather.gov";
