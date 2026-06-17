@@ -548,9 +548,19 @@ body {
 .caic-body ul,
 .caic-body ol  { padding-left: 1.25rem; margin-bottom: 0.5rem; }
 
-/* Placeholder reserved for the overlay chart (workstream 6) — hidden until wired */
+/* Overlay chart container */
+.caic-chart-placeholder {
+  padding: 0.5rem 1rem 0.75rem;
+}
+
 .caic-chart-placeholder:empty {
   display: none;
+}
+
+/* The canvas Chart.js renders into — full width, constrained height */
+.overlay-chart-canvas {
+  width: 100% !important;
+  display: block;
 }
 
 /* =========================================================================

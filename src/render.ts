@@ -20,6 +20,7 @@ import type {
 import { LOCATIONS } from "./locations";
 import { state, setActiveLocation, setActiveView } from "./store";
 import { currentSeriesValue, sumSeriesNextHours } from "./nws";
+import { renderOverlayChart } from "./chart";
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -628,10 +629,18 @@ function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
         ? `<p class="caic-issued">${d.issuedBy}</p>`
         : ""}
       <div class="caic-body">${d.bodyHtml}</div>
-      <div id="caic-chart-placeholder" class="caic-chart-placeholder" aria-hidden="true"></div>
+      <div id="caic-chart-placeholder" class="caic-chart-placeholder"></div>
       ${cardFooter(ts, result.error)}
     </section>
   `;
+
+  // Render the overlay chart into the placeholder now that the DOM is painted.
+  // Reads NWS hourly for the active location and CAIC point-forecast from state.
+  const loc        = LOCATIONS[state.activeLocation];
+  const nwsHourly  = (state.weather[loc.id].hourly.data ?? state.weather[loc.id].hourly.lastGoodData);
+  const caicFcst   = state.caic.pointForecast.data ?? state.caic.pointForecast.lastGoodData;
+  const placeholder = document.getElementById("caic-chart-placeholder")!;
+  renderOverlayChart(placeholder, nwsHourly, caicFcst, loc.id);
 }
 
 // ---------------------------------------------------------------------------
