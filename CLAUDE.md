@@ -3,6 +3,9 @@
 ## Working rules
 - Do not implement fixes, improvements, or build work unless explicitly directed to by the user. Diagnose, explain, and ask first.
 - Always provide full URLs for the user to copy and paste (e.g. https://weather-dashboard-five-umber.vercel.app/api/caic, not just /api/caic).
+- The user works from either an **iPhone** or a **Windows desktop**. Tailor all browser instructions accordingly:
+  - **iPhone (Safari):** No DevTools available. Can visit URLs directly and paste back what the browser shows. Cannot inspect network requests. For anything requiring network inspection, defer to a Windows desktop session.
+  - **Windows desktop (Chrome):** Full DevTools available. Network tab: F12 → Network → filter Fetch/XHR → reload page. Use Chrome-specific instructions (not Mac/Safari instructions).
 
 Personal weather-consolidation PWA for two Colorado locations. Spec is locked (see `weather-forecast-overview.md` and `weather-pwa-planning.md` for full history/reasoning). This file is the working reference for build sessions.
 
