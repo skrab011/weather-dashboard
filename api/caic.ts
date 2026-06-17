@@ -242,5 +242,6 @@ export default async function handler(_req: Req, res: Res): Promise<void> {
       : (pointResult.status === "rejected" && pointResult.reason?.debug ? pointResult.reason.debug : null),
 
     fetchedAt: new Date().toISOString(),
+    _v: 3,
   });
 }
