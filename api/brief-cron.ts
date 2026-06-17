@@ -9,7 +9,7 @@
 // CRON_SECRET header that Vercel injects on cron invocations.
 // ---------------------------------------------------------------------------
 
-import { kv } from "@vercel/kv";
+import { put } from "@vercel/blob";
 import { generateBrief } from "./brief-generate";
 
 type Req = {
@@ -22,12 +22,9 @@ type Res = {
   setHeader: (name: string, value: string) => void;
 };
 
-const KV_KEY = "consensus-brief";
-
 export default async function handler(req: Req, res: Res): Promise<void> {
-  // Vercel sets Authorization: Bearer <CRON_SECRET> on cron invocations.
-  // Reject any request that doesn't carry the secret so the endpoint can't
-  // be triggered by random external callers.
+  // Vercel injects Authorization: Bearer <CRON_SECRET> on cron invocations.
+  // Reject external callers that don't carry the secret.
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = req.headers?.["authorization"] ?? "";
@@ -42,7 +39,11 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
   try {
     const result = await generateBrief();
-    await kv.set(KV_KEY, result, { ex: 86_400 });
+    await put("consensus-brief.json", JSON.stringify(result), {
+      access: "public",
+      addRandomSuffix: false,
+      contentType: "application/json",
+    });
     res.status(200).json({ ok: true, generatedAt: result.generatedAt });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
