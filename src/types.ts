@@ -143,9 +143,46 @@ export interface LocationWeather {
 // The two possible forecast views.
 export type ViewMode = "hourly" | "7day";
 
+// ---------------------------------------------------------------------------
+// CAIC types — Colorado Avalanche Information Center
+//
+// Silverthorne and Frisco share the same CAIC forecast zone (Vail & Summit
+// County), so CAIC data is zone-wide and lives on AppState.caic rather than
+// inside LocationWeather, avoiding a duplicate fetch per location.
+// ---------------------------------------------------------------------------
+
+// Processed Weather Summary from CAIC's write-up endpoint.
+export interface CAICWeatherSummary {
+  // Human-readable "Issued by / Day, Date, Time" line extracted from the body.
+  // Shown prominently so users can assess freshness at a glance.
+  issuedBy: string;
+
+  // Full HTML body of the write-up, sanitised (script/on* stripped) server-side.
+  bodyHtml: string;
+}
+
+// One row from the CAIC Highcharts point-forecast JSON feed.
+// Loosely typed because the undocumented feed schema can change without notice.
+export interface CAICPointForecastRow {
+  dateTime: string;
+  tmpF: number | null;
+  precipIn: number | null;
+  snowIn: number | null;
+  windSpeedMph: number | null;
+  windGustMph: number | null;
+  windDir: string | null;
+}
+
+// Container for all CAIC data: two independently-isolated source results.
+export interface CAICZoneData {
+  summary:       SourceResult<CAICWeatherSummary>;
+  pointForecast: SourceResult<CAICPointForecastRow[]>;
+}
+
 // Top-level application state, held in store.ts.
 export interface AppState {
   activeLocation: 0 | 1;
   activeView: ViewMode;
   weather: Record<string, LocationWeather>; // keyed by Location.id
+  caic: CAICZoneData;                        // zone-wide, shared across locations
 }

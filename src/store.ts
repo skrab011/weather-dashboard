@@ -10,6 +10,7 @@
 
 import type {
   AppState,
+  CAICZoneData,
   LocationAirQuality,
   LocationWeather,
   NWSAlert,
@@ -44,6 +45,14 @@ function emptyLocationWeather(): LocationWeather {
   };
 }
 
+// CAIC starts in loading state — both sub-results are empty.
+function emptyCAICZoneData(): CAICZoneData {
+  return {
+    summary:       emptyResult(),
+    pointForecast: emptyResult(),
+  };
+}
+
 // The single application state object. Mutated in place by the setters below.
 export const state: AppState = {
   activeLocation: 0,
@@ -52,6 +61,7 @@ export const state: AppState = {
     [LOCATIONS[0].id]: emptyLocationWeather(),
     [LOCATIONS[1].id]: emptyLocationWeather(),
   },
+  caic: emptyCAICZoneData(),
 };
 
 // Subscribers are called synchronously after every state mutation.
@@ -83,5 +93,12 @@ export function updateLocationWeather(
   weather: LocationWeather,
 ): void {
   state.weather[locationId] = weather;
+  notify();
+}
+
+// Replaces CAIC zone data and triggers a re-render.
+// Called once at boot after the CAIC fetch resolves (or fails).
+export function updateCAIC(data: CAICZoneData): void {
+  state.caic = data;
   notify();
 }

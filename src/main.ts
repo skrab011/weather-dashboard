@@ -7,14 +7,16 @@
 //   3. Do the initial render (all cards in loading/skeleton state)
 //   4. Calculate sun times synchronously and push them into state
 //   5. Fetch NWS + air quality data for both locations in parallel
+//   6. Fetch CAIC data in parallel with the per-location fetches
 // ---------------------------------------------------------------------------
 
 import "./style.css";
 import { LOCATIONS } from "./locations";
 import { fetchPoints, fetchAllForLocation } from "./nws";
 import { fetchAirQuality } from "./airQuality";
+import { fetchCAIC } from "./caic";
 import { calcSunTimes } from "./sun";
-import { state, subscribe, updateLocationWeather } from "./store";
+import { state, subscribe, updateLocationWeather, updateCAIC } from "./store";
 import { renderShell, renderAll } from "./render";
 
 async function boot(): Promise<void> {
@@ -27,9 +29,17 @@ async function boot(): Promise<void> {
   // Initial render — all cards show their skeleton/loading state
   renderAll();
 
+  // CAIC is zone-wide (same zone for both locations) — fetch once alongside the
+  // per-location NWS/AQ fetches. A failure here never affects the other cards.
+  const caicPromise = fetchCAIC(state.caic).then(updateCAIC).catch(() => {
+    // fetchCAIC already wraps errors in SourceResult, so this only fires on
+    // unexpected throws. The store stays in loading state; the card shows a skeleton.
+  });
+
   // Fetch both locations in parallel; neither waits on the other
-  await Promise.all(
-    LOCATIONS.map(async (loc) => {
+  await Promise.all([
+    caicPromise,
+    ...LOCATIONS.map(async (loc) => {
       // Sun times are pure math — calculate immediately so sunrise/sunset
       // appears in the "Now" card before the network calls return
       const sunTimes = calcSunTimes(loc.lat, loc.lon, new Date());
@@ -100,7 +110,7 @@ async function boot(): Promise<void> {
         });
       }
     }),
-  );
+  ]);
 }
 
 boot();

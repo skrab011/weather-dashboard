@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import type {
+  CAICWeatherSummary,
   LocationAirQuality,
   NWSAlert,
   NWSGridpoint,
@@ -121,6 +122,10 @@ export function renderShell(): void {
       <div id="forecast-region" class="view-7day">
         ${skeletonCard()}
       </div>
+
+      <div id="caic-region">
+        ${skeletonCard()}
+      </div>
     </main>
   `;
 
@@ -167,6 +172,7 @@ export function renderAll(): void {
   renderAirQuality(weather.airQuality, loc.id);
   renderHourly(weather.hourly);
   renderForecast(weather.forecast);
+  renderCAIC(state.caic.summary);
 }
 
 // ---------------------------------------------------------------------------
@@ -567,6 +573,57 @@ function renderForecast(result: SourceResult<NWSPeriod[]>): void {
         ${rows.join("")}
       </div>
       ${cardFooter(result.lastUpdated ?? result.lastGoodUpdated, result.error)}
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// CAIC Weather Summary card.
+//
+// Always visible regardless of active location tab — CAIC is zone-wide and
+// applies equally to both Silverthorne and Frisco.
+//
+// The issued-by line is shown prominently at the top so freshness is
+// immediately visible. The full write-up is rendered as innerHTML from
+// sanitised server-side HTML.
+//
+// A placeholder div is included for the overlay chart (workstream 6).
+// ---------------------------------------------------------------------------
+function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
+  const el = document.getElementById("caic-region")!;
+
+  // Loading state
+  if (!result.data && !result.error && !result.lastGoodData) {
+    el.innerHTML = skeletonCard();
+    return;
+  }
+
+  // Hard error with no fallback data
+  if (result.error && !result.lastGoodData) {
+    el.innerHTML = `
+      <section class="card card--error">
+        <h2 class="card-title">CAIC Weather Summary</h2>
+        <p class="card-empty">Could not load CAIC write-up.</p>
+        ${cardFooter(null, result.error)}
+      </section>`;
+    return;
+  }
+
+  const d = (result.data ?? result.lastGoodData)!;
+  const ts = result.lastUpdated ?? result.lastGoodUpdated;
+
+  // Showing stale data — apply the stale border so the user knows
+  const isStale = !!result.error && !!result.lastGoodData;
+
+  el.innerHTML = `
+    <section class="card${isStale ? " card--error" : ""}">
+      <h2 class="card-title">CAIC Weather Summary</h2>
+      ${d.issuedBy
+        ? `<p class="caic-issued">${d.issuedBy}</p>`
+        : ""}
+      <div class="caic-body">${d.bodyHtml}</div>
+      <div id="caic-chart-placeholder" class="caic-chart-placeholder" aria-hidden="true"></div>
+      ${cardFooter(ts, result.error)}
     </section>
   `;
 }
