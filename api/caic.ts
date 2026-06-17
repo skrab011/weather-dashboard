@@ -61,16 +61,23 @@ function sanitiseHtml(html: string): string {
 
 // Format an ISO timestamp as a human-readable "Issued by / Day, Date, Time" line.
 // Falls back to extracting a pattern from the body text if structured fields aren't useful.
-function buildIssuedBy(issuedAt: string | null, issuer: string | null, bodyText: string): string {
-  // Try structured fields first — most reliable
-  if (issuedAt) {
+function buildIssuedBy(issuedAt: string | null, issuer: unknown, bodyText: string): string {
+  // issuer may be a string or an object like {name: "...", id: ...}
+  const issuerName =
+    typeof issuer === "string" ? issuer
+    : issuer && typeof issuer === "object" ? String(
+        (issuer as Record<string, unknown>).name ??
+        (issuer as Record<string, unknown>).full_name ??
+        (issuer as Record<string, unknown>).username ?? ""
+      )
+    : "";
     const dt = new Date(issuedAt);
     const formatted = dt.toLocaleString("en-US", {
       weekday: "long", month: "long", day: "numeric",
       hour: "numeric", minute: "2-digit", timeZoneName: "short",
       timeZone: "America/Denver",
     });
-    return issuer ? `Issued by ${issuer} / ${formatted}` : `Issued ${formatted}`;
+    return issuerName ? `Issued by ${issuerName} / ${formatted}` : `Issued ${formatted}`;
   }
 
   // Fall back to scanning the body text for an "Issued by …" line
@@ -103,7 +110,7 @@ async function fetchSummary(): Promise<{ issuedBy: string; bodyHtml: string }> {
   const bodyHtml = sanitiseHtml(rawBody);
   const issuedBy = buildIssuedBy(
     json.issued_at as string | null,
-    json.issuer as string | null,
+    json.issuer,
     rawBody,
   );
 
