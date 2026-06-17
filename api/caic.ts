@@ -122,49 +122,62 @@ async function fetchSummary(): Promise<{ issuedBy: string; bodyHtml: string }> {
   return { issuedBy, bodyHtml };
 }
 
-// Extract Highcharts series data embedded in the looper HTML page.
-// The page contains a <script> block that calls Highcharts.chart(…) with an
-// options object. We pull out the series and xAxis.categories arrays via regex
-// and pivot them into flat row objects.
-function parseHighchartsFromHtml(html: string): Array<Record<string, unknown>> {
-  // Extract all <script> blocks
-  const scripts: string[] = [];
-  const scriptRe = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = scriptRe.exec(html)) !== null) scripts.push(m[1]);
+// Extract a balanced bracket-delimited array from `text` starting at `fromIndex`.
+// Uses bracket counting so nested arrays are handled correctly.
+function extractArray(text: string, fromIndex: number): string | null {
+  const start = text.indexOf("[", fromIndex);
+  if (start === -1) return null;
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === "[") depth++;
+    else if (text[i] === "]") { depth--; if (depth === 0) return text.slice(start, i + 1); }
+  }
+  return null;
+}
 
-  for (const script of scripts) {
-    // Look for a Highcharts.chart(…) call containing series data
-    if (!script.includes("series") || !script.includes("categories")) continue;
+// Find and parse the `data` array for the named Highcharts series.
+// Series in the looper page use datetime x-axis: data: [[timestampMs, value], ...]
+function findSeriesData(html: string, name: string): [number, number | null][] | null {
+  const nameToken = `name: '${name}'`;
+  const nameIdx = html.indexOf(nameToken);
+  if (nameIdx === -1) return null;
+  const dataKeyIdx = html.indexOf("data:", nameIdx);
+  if (dataKeyIdx === -1) return null;
+  // Sanity check: make sure we haven't jumped into the next series block
+  const nextNameIdx = html.indexOf("name:", nameIdx + nameToken.length);
+  if (nextNameIdx !== -1 && dataKeyIdx > nextNameIdx) return null;
+  const arrayStr = extractArray(html, dataKeyIdx);
+  if (!arrayStr) return null;
+  try { return JSON.parse(arrayStr) as [number, number | null][]; } catch { return null; }
+}
 
-    // Extract categories array
-    const catMatch = script.match(/categories\s*:\s*(\[[^\]]+\])/);
-    // Extract series array — may span multiple lines
-    const seriesMatch = script.match(/series\s*:\s*(\[[\s\S]*?\}[\s\S]*?\])/);
+// Parse the looper point-forecast HTML page.
+// All Highcharts series are inlined in a <script> block; no AJAX calls.
+// X axis is datetime (Unix ms UTC). Temperature series is named 'Temp'.
+function parseLooperHtml(html: string): Array<Record<string, unknown>> {
+  const elevMatch = html.match(/var\s+elev\s*=\s*([\d.]+)/);
+  const elevFt = elevMatch ? parseFloat(elevMatch[1]) : null;
 
-    if (!catMatch || !seriesMatch) continue;
-
-    try {
-      // Use Function constructor to safely evaluate the JSON-like literals
-      // (Highcharts options use JS object syntax, not strict JSON)
-      const categories = Function(`"use strict"; return ${catMatch[1]}`)() as string[];
-      const series = Function(`"use strict"; return ${seriesMatch[1]}`)() as Array<{
-        name: string;
-        data: (number | null)[];
-      }>;
-
-      return categories.map((dt, idx) => {
-        const row: Record<string, unknown> = { dateTime: dt };
-        for (const s of series) row[s.name] = s.data?.[idx] ?? null;
-        return row;
-      });
-    } catch {
-      // This script block didn't parse — try the next one
-      continue;
-    }
+  const tempData = findSeriesData(html, "Temp");
+  if (!tempData || tempData.length === 0) {
+    throw new Error("CAIC point-forecast: Temp series not found in page HTML");
   }
 
-  throw new Error("CAIC point-forecast: could not find Highcharts data in page");
+  const windData  = findSeriesData(html, "Wind Speed");
+  const gustData  = findSeriesData(html, "Gust");
+  const precipData = findSeriesData(html, "Precip");
+  const snowData  = findSeriesData(html, "Snow");
+
+  return tempData.map(([timestampMs, tmpF], i) => ({
+    dateTime:     new Date(timestampMs).toISOString(),
+    tmpF:         tmpF ?? null,
+    windSpeedMph: windData?.[i]?.[1] ?? null,
+    windGustMph:  gustData?.[i]?.[1] ?? null,
+    precipIn:     precipData?.[i]?.[1] ?? null,
+    snowIn:       snowData?.[i]?.[1] ?? null,
+    windDir:      null,
+    elevFt,
+  }));
 }
 
 // Fetch the point-forecast HTML page and extract the embedded series data.
@@ -182,7 +195,7 @@ async function fetchPointForecast(): Promise<Array<Record<string, unknown>>> {
   if (!res.ok) throw new Error(`CAIC point-forecast HTTP ${res.status}`);
 
   const html = await res.text();
-  return parseHighchartsFromHtml(html);
+  return parseLooperHtml(html);
 }
 
 export default async function handler(_req: Req, res: Res): Promise<void> {
