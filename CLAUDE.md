@@ -43,7 +43,7 @@ Priority order for tradeoffs:
 
 ### Overlay + consensus brief
 - One chart we control, plotting NWS + CAIC on shared axes, with each forecast's **elevation clearly labeled** (avoid misreading elevation gaps as model disagreement).
-- Consensus brief: AI ingests **NWS + CAIC only** (not Tomer), summarized in plain language. Generated on a schedule + cached, with manual refresh. Keep AI cost to pennies/month.
+- Consensus brief: AI ingests **NWS + CAIC only** (not Tomer), summarized in plain language. Generated on demand (first request) + cached via CDN, with manual refresh. Vercel cron jobs require the Pro plan (not available on Hobby/free tier), so there is no scheduled refresh — the CDN cache expires every 10 minutes, at which point the next page load regenerates. Keep AI cost to pennies/month.
 
 ### Additional confirmed features
 - Snowfall accumulation (separate from precip)
