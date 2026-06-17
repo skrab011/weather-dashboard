@@ -62,15 +62,20 @@ function sanitiseHtml(html: string): string {
 // Format an ISO timestamp as a human-readable "Issued by / Day, Date, Time" line.
 // Falls back to extracting a pattern from the body text if structured fields aren't useful.
 function buildIssuedBy(issuedAt: string | null, issuer: unknown, bodyText: string): string {
-  // issuer may be a string or an object like {name: "...", id: ...}
+  // issuer may be a plain string or an object like {name: "...", id: ...}
   const issuerName =
     typeof issuer === "string" ? issuer
-    : issuer && typeof issuer === "object" ? String(
-        (issuer as Record<string, unknown>).name ??
-        (issuer as Record<string, unknown>).full_name ??
-        (issuer as Record<string, unknown>).username ?? ""
-      )
-    : "";
+    : issuer && typeof issuer === "object"
+      ? String(
+          (issuer as Record<string, unknown>).name ??
+          (issuer as Record<string, unknown>).full_name ??
+          (issuer as Record<string, unknown>).username ??
+          ""
+        )
+      : "";
+
+  // Use structured issued_at timestamp if present — most reliable
+  if (issuedAt) {
     const dt = new Date(issuedAt);
     const formatted = dt.toLocaleString("en-US", {
       weekday: "long", month: "long", day: "numeric",
