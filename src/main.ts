@@ -15,8 +15,9 @@ import { LOCATIONS } from "./locations";
 import { fetchPoints, fetchAllForLocation } from "./nws";
 import { fetchAirQuality } from "./airQuality";
 import { fetchCAIC } from "./caic";
+import { fetchTomer } from "./tomer";
 import { calcSunTimes } from "./sun";
-import { state, subscribe, updateLocationWeather, updateCAIC } from "./store";
+import { state, subscribe, updateLocationWeather, updateCAIC, updateTomer } from "./store";
 import { renderShell, renderAll } from "./render";
 
 async function boot(): Promise<void> {
@@ -29,16 +30,15 @@ async function boot(): Promise<void> {
   // Initial render — all cards show their skeleton/loading state
   renderAll();
 
-  // CAIC is zone-wide (same zone for both locations) — fetch once alongside the
-  // per-location NWS/AQ fetches. A failure here never affects the other cards.
-  const caicPromise = fetchCAIC(state.caic).then(updateCAIC).catch(() => {
-    // fetchCAIC already wraps errors in SourceResult, so this only fires on
-    // unexpected throws. The store stays in loading state; the card shows a skeleton.
-  });
+  // CAIC and Tomer are zone-wide — fetch once alongside per-location fetches.
+  // Failures are isolated: each wraps its own errors in SourceResult.
+  const caicPromise  = fetchCAIC(state.caic).then(updateCAIC).catch(() => {});
+  const tomerPromise = fetchTomer(state.tomer).then(updateTomer).catch(() => {});
 
   // Fetch both locations in parallel; neither waits on the other
   await Promise.all([
     caicPromise,
+    tomerPromise,
     ...LOCATIONS.map(async (loc) => {
       // Sun times are pure math — calculate immediately so sunrise/sunset
       // appears in the "Now" card before the network calls return

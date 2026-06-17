@@ -554,6 +554,33 @@ body {
 }
 
 /* =========================================================================
+   Chris Tomer description card
+   ========================================================================= */
+
+/* Video title shown above the description in muted small text */
+.tomer-video-title {
+  font-size: 0.8rem;
+  color: var(--fg-secondary);
+  padding: 0 1rem 0.5rem;
+  font-style: italic;
+}
+
+/* Description body — plain text with preserved line breaks */
+.tomer-body {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--fg);
+  padding: 0 1rem 0.75rem;
+}
+
+/* Posted date sits below the description, styled like a footer */
+.tomer-published {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* =========================================================================
    Responsive — desktop / wider screens get a two-column card grid
    ========================================================================= */
 @media (min-width: 640px) {
@@ -568,11 +595,12 @@ body {
     gap: 0.85rem;
   }
 
-  /* Alert banners, forecast/hourly cards, and CAIC card span both columns */
+  /* Alert banners, forecast/hourly, CAIC, and Tomer cards span both columns */
   #alerts-region,
   #hourly-region,
   #forecast-region,
-  #caic-region {
+  #caic-region,
+  #tomer-region {
     grid-column: 1 / -1;
   }
 }

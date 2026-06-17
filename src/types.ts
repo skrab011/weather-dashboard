@@ -179,10 +179,24 @@ export interface CAICZoneData {
   pointForecast: SourceResult<CAICPointForecastRow[]>;
 }
 
+// ---------------------------------------------------------------------------
+// Chris Tomer types — YouTube description pull
+//
+// We display only the description text from his latest "Mountain Weather
+// Update" video. No embed, no link, no AI summary — just the text he posts.
+// ---------------------------------------------------------------------------
+
+export interface TomerVideo {
+  title:       string; // full video title, shown in muted text above the description
+  description: string; // the posted description text — this is the main content
+  publishedAt: string; // ISO 8601 — shown in the card footer for freshness
+}
+
 // Top-level application state, held in store.ts.
 export interface AppState {
   activeLocation: 0 | 1;
   activeView: ViewMode;
   weather: Record<string, LocationWeather>; // keyed by Location.id
   caic: CAICZoneData;                        // zone-wide, shared across locations
+  tomer: SourceResult<TomerVideo>;           // zone-wide, not per-location
 }

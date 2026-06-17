@@ -15,6 +15,7 @@ import type {
   NWSPeriod,
   SourceResult,
   SunTimes,
+  TomerVideo,
 } from "./types";
 import { LOCATIONS } from "./locations";
 import { state, setActiveLocation, setActiveView } from "./store";
@@ -126,6 +127,10 @@ export function renderShell(): void {
       <div id="caic-region">
         ${skeletonCard()}
       </div>
+
+      <div id="tomer-region">
+        ${skeletonCard()}
+      </div>
     </main>
   `;
 
@@ -173,6 +178,7 @@ export function renderAll(): void {
   renderHourly(weather.hourly);
   renderForecast(weather.forecast);
   renderCAIC(state.caic.summary);
+  renderTomer(state.tomer);
 }
 
 // ---------------------------------------------------------------------------
@@ -624,6 +630,61 @@ function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
       <div class="caic-body">${d.bodyHtml}</div>
       <div id="caic-chart-placeholder" class="caic-chart-placeholder" aria-hidden="true"></div>
       ${cardFooter(ts, result.error)}
+    </section>
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Chris Tomer description card.
+//
+// Displays the description text from his latest "Mountain Weather Update"
+// video. No embed, no link — description text only, per spec.
+// The video title is shown in small muted text above the description so
+// the user can see which video the description belongs to.
+// ---------------------------------------------------------------------------
+function renderTomer(result: SourceResult<TomerVideo>): void {
+  const el = document.getElementById("tomer-region")!;
+
+  if (!result.data && !result.error && !result.lastGoodData) {
+    el.innerHTML = skeletonCard();
+    return;
+  }
+
+  if (result.error && !result.lastGoodData) {
+    el.innerHTML = `
+      <section class="card card--error">
+        <h2 class="card-title">Mountain Weather Update</h2>
+        <p class="card-empty">Could not load video description.</p>
+        ${cardFooter(null, result.error)}
+      </section>`;
+    return;
+  }
+
+  const d  = (result.data ?? result.lastGoodData)!;
+  const ts = result.lastUpdated ?? result.lastGoodUpdated;
+  const isStale = !!result.error && !!result.lastGoodData;
+
+  // Format the publish date as a readable string for the footer
+  const published = d.publishedAt
+    ? new Date(d.publishedAt).toLocaleDateString([], {
+        weekday: "short", month: "short", day: "numeric",
+      })
+    : null;
+
+  // Preserve line breaks from the YouTube description (newlines → <br>)
+  const descHtml = d.description
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+
+  el.innerHTML = `
+    <section class="card${isStale ? " card--error" : ""}">
+      <h2 class="card-title">Mountain Weather Update</h2>
+      <p class="tomer-video-title">${d.title}</p>
+      <div class="tomer-body">${descHtml}</div>
+      ${cardFooter(ts, result.error)}
+      ${published ? `<footer class="card-footer tomer-published">Posted ${published}</footer>` : ""}
     </section>
   `;
 }

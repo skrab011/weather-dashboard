@@ -17,6 +17,7 @@ import type {
   NWSGridpoint,
   NWSPeriod,
   SourceResult,
+  TomerVideo,
   ViewMode,
 } from "./types";
 import { LOCATIONS } from "./locations";
@@ -61,7 +62,8 @@ export const state: AppState = {
     [LOCATIONS[0].id]: emptyLocationWeather(),
     [LOCATIONS[1].id]: emptyLocationWeather(),
   },
-  caic: emptyCAICZoneData(),
+  caic:  emptyCAICZoneData(),
+  tomer: emptyResult<TomerVideo>(),
 };
 
 // Subscribers are called synchronously after every state mutation.
@@ -100,5 +102,11 @@ export function updateLocationWeather(
 // Called once at boot after the CAIC fetch resolves (or fails).
 export function updateCAIC(data: CAICZoneData): void {
   state.caic = data;
+  notify();
+}
+
+// Replaces Tomer video data and triggers a re-render.
+export function updateTomer(data: SourceResult<TomerVideo>): void {
+  state.tomer = data;
   notify();
 }
