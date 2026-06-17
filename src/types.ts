@@ -192,6 +192,15 @@ export interface TomerVideo {
   publishedAt: string; // ISO 8601 — shown in the card footer for freshness
 }
 
+// ---------------------------------------------------------------------------
+// Consensus brief — AI-generated summary of NWS + CAIC forecasts.
+// Generated on a schedule server-side; cached in Vercel KV.
+// ---------------------------------------------------------------------------
+export interface ConsensusBrief {
+  text: string;        // 3–5 sentence plain-prose summary from Claude Haiku
+  generatedAt: string; // ISO 8601 timestamp from when the AI ran
+}
+
 // Top-level application state, held in store.ts.
 export interface AppState {
   activeLocation: 0 | 1;
@@ -199,4 +208,5 @@ export interface AppState {
   weather: Record<string, LocationWeather>; // keyed by Location.id
   caic: CAICZoneData;                        // zone-wide, shared across locations
   tomer: SourceResult<TomerVideo>;           // zone-wide, not per-location
+  brief: SourceResult<ConsensusBrief>;       // zone-wide AI summary
 }

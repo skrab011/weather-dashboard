@@ -9,6 +9,7 @@
 
 import type {
   CAICWeatherSummary,
+  ConsensusBrief,
   LocationAirQuality,
   NWSAlert,
   NWSGridpoint,
@@ -18,7 +19,8 @@ import type {
   TomerVideo,
 } from "./types";
 import { LOCATIONS } from "./locations";
-import { state, setActiveLocation, setActiveView } from "./store";
+import { state, setActiveLocation, setActiveView, updateBrief } from "./store";
+import { fetchBrief } from "./brief";
 import { currentSeriesValue, sumSeriesNextHours } from "./nws";
 import { renderOverlayChart } from "./chart";
 
@@ -129,6 +131,10 @@ export function renderShell(): void {
         ${skeletonCard()}
       </div>
 
+      <div id="brief-region">
+        ${skeletonCard()}
+      </div>
+
       <div id="tomer-region">
         ${skeletonCard()}
       </div>
@@ -179,6 +185,7 @@ export function renderAll(): void {
   renderHourly(weather.hourly);
   renderForecast(weather.forecast);
   renderCAIC(state.caic.summary);
+  renderBrief(state.brief);
   renderTomer(state.tomer);
 }
 
@@ -641,6 +648,66 @@ function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
   const caicFcst   = state.caic.pointForecast.data ?? state.caic.pointForecast.lastGoodData;
   const placeholder = document.getElementById("caic-chart-placeholder")!;
   renderOverlayChart(placeholder, nwsHourly, caicFcst, loc.id);
+}
+
+// ---------------------------------------------------------------------------
+// Consensus brief card — AI-generated 3–5 sentence plain-prose summary.
+//
+// Includes a manual refresh button that calls /api/brief?refresh=true,
+// which triggers a fresh Claude Haiku call server-side and re-caches the result.
+// The button is disabled while a refresh is in flight to prevent double-clicks.
+// ---------------------------------------------------------------------------
+function renderBrief(result: SourceResult<ConsensusBrief>): void {
+  const el = document.getElementById("brief-region")!;
+
+  if (!result.data && !result.error && !result.lastGoodData) {
+    el.innerHTML = skeletonCard();
+    return;
+  }
+
+  if (result.error && !result.lastGoodData) {
+    el.innerHTML = `
+      <section class="card card--error">
+        <h2 class="card-title">Consensus Brief</h2>
+        <p class="card-empty">Could not load brief.</p>
+        ${cardFooter(null, result.error)}
+      </section>`;
+    return;
+  }
+
+  const d  = (result.data ?? result.lastGoodData)!;
+  const ts = result.lastUpdated ?? result.lastGoodUpdated;
+  const isStale = !!result.error && !!result.lastGoodData;
+
+  const genTime = d.generatedAt
+    ? new Date(d.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
+
+  el.innerHTML = `
+    <section class="card${isStale ? " card--error" : ""}">
+      <h2 class="card-title">Consensus Brief</h2>
+      <div class="brief-body">${d.text}</div>
+      <div class="brief-footer">
+        ${genTime ? `<span class="brief-generated">Generated ${genTime}</span>` : ""}
+        <button class="brief-refresh-btn" aria-label="Refresh consensus brief">↻ Refresh</button>
+      </div>
+      ${cardFooter(ts, result.error)}
+    </section>
+  `;
+
+  // Wire the refresh button — disabled while in flight
+  const btn = el.querySelector<HTMLButtonElement>(".brief-refresh-btn")!;
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    btn.textContent = "Refreshing…";
+    try {
+      const updated = await fetchBrief(result, true);
+      updateBrief(updated);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "↻ Refresh";
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------

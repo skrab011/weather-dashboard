@@ -11,6 +11,7 @@
 import type {
   AppState,
   CAICZoneData,
+  ConsensusBrief,
   LocationAirQuality,
   LocationWeather,
   NWSAlert,
@@ -64,6 +65,7 @@ export const state: AppState = {
   },
   caic:  emptyCAICZoneData(),
   tomer: emptyResult<TomerVideo>(),
+  brief: emptyResult<ConsensusBrief>(),
 };
 
 // Subscribers are called synchronously after every state mutation.
@@ -108,5 +110,11 @@ export function updateCAIC(data: CAICZoneData): void {
 // Replaces Tomer video data and triggers a re-render.
 export function updateTomer(data: SourceResult<TomerVideo>): void {
   state.tomer = data;
+  notify();
+}
+
+// Replaces consensus brief data and triggers a re-render.
+export function updateBrief(data: SourceResult<ConsensusBrief>): void {
+  state.brief = data;
   notify();
 }

@@ -16,8 +16,9 @@ import { fetchPoints, fetchAllForLocation } from "./nws";
 import { fetchAirQuality } from "./airQuality";
 import { fetchCAIC } from "./caic";
 import { fetchTomer } from "./tomer";
+import { fetchBrief } from "./brief";
 import { calcSunTimes } from "./sun";
-import { state, subscribe, updateLocationWeather, updateCAIC, updateTomer } from "./store";
+import { state, subscribe, updateLocationWeather, updateCAIC, updateTomer, updateBrief } from "./store";
 import { renderShell, renderAll } from "./render";
 
 async function boot(): Promise<void> {
@@ -34,11 +35,13 @@ async function boot(): Promise<void> {
   // Failures are isolated: each wraps its own errors in SourceResult.
   const caicPromise  = fetchCAIC(state.caic).then(updateCAIC).catch(() => {});
   const tomerPromise = fetchTomer(state.tomer).then(updateTomer).catch(() => {});
+  const briefPromise = fetchBrief(state.brief).then(updateBrief).catch(() => {});
 
   // Fetch both locations in parallel; neither waits on the other
   await Promise.all([
     caicPromise,
     tomerPromise,
+    briefPromise,
     ...LOCATIONS.map(async (loc) => {
       // Sun times are pure math — calculate immediately so sunrise/sunset
       // appears in the "Now" card before the network calls return
