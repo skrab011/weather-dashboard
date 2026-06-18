@@ -98,7 +98,9 @@ How we get from "agreed spec" to "installed on your phone." You asked to build e
 7. **Tomer embed.** Latest forecast video + its description.
 8. **Consensus brief.** The scheduled AI call (NWS + CAIC), caching, and manual refresh.
 9. **Polish + harden.** Offline behavior, "last updated" stamps everywhere, loading/empty/error states, and a pass to make sure no single source can take the app down.
-10. **Install on your phone + final tuning.** Includes silencing the git commit signature warning — Claude's commits can't be GPG-signed in the remote build environment, so GitHub marks them "Unverified." This is cosmetic and has no effect on the running app. The stop-hook check at `~/.claude/stop-hook-git-check.sh` will be updated at this step to skip the signature requirement for commits authored by `noreply@anthropic.com`.
+10. **Install on your phone + final tuning.** Includes:
+    - Silencing the git commit signature warning — Claude's commits can't be GPG-signed in the remote build environment, so GitHub marks them "Unverified." This is cosmetic and has no effect on the running app. The stop-hook check at `~/.claude/stop-hook-git-check.sh` will be updated at this step to skip the signature requirement for commits authored by `noreply@anthropic.com`.
+    - Making the CAIC looper timezone offset dynamic. The looper encodes Mountain local time in its Highcharts timestamps (Highcharts `useUTC: false`). Currently hardcoded to 6 hours (MDT, UTC−6). When MST (UTC−7) is in effect (approx. November–March), this needs to be 7 hours. Replace the hardcoded `6 * 3_600_000` constant in `api/caic.ts` and `api/brief.ts` with a value derived from the actual UTC offset for `America/Denver` at the time of the request.
 
 ---
 
