@@ -660,6 +660,18 @@ body {
   /* Unstick the header so it scrolls with the page */
   .app-header {
     position: static;
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0.75rem 1.5rem 0;
+  }
+
+  /* View toggle: same width constraint and padding as header and content */
+  .view-toggle {
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0.75rem 1.5rem;
   }
 
   /* Content: wider, centred */
