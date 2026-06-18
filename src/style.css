@@ -107,7 +107,7 @@ body {
 }
 
 .tab--active {
-  color: var(--fg);
+  color: var(--accent);
   border-bottom-color: var(--accent);
 }
 
@@ -657,16 +657,28 @@ body {
    Header is no longer sticky; tabs and toggle re-centre with the content.
    ========================================================================= */
 @media (min-width: 960px) {
-  /* Unstick the header so it scrolls with the page */
+  /* Unstick the header so it scrolls with the page; remove side padding so
+     the title stays at the screen left edge and the tab bar can centre itself
+     independently to align with the card columns */
   .app-header {
     position: static;
+    padding: 0.75rem 0 0;
+  }
+
+  /* Title keeps its own left padding — stays at screen left */
+  .app-title {
+    padding-left: 1rem;
+  }
+
+  /* Tab bar centres and aligns with the card columns */
+  .tab-bar {
     max-width: 1600px;
     margin: 0 auto;
     width: 100%;
-    padding: 0.75rem 1.5rem 0;
+    padding: 0 1.5rem;
   }
 
-  /* View toggle: same width constraint and padding as header and content */
+  /* View toggle: same width constraint and padding as tab bar and content */
   .view-toggle {
     max-width: 1600px;
     margin: 0 auto;
