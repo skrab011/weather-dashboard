@@ -1,4 +1,4 @@
-const CACHE = "weather-v1";
+const CACHE = "weather-v2";
 
 // Core shell files to cache on install
 const PRECACHE = ["/", "/manifest.json", "/icons/icon-192.png"];
@@ -26,6 +26,11 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET" || !request.url.startsWith(self.location.origin)) {
     return;
   }
+
+  // API routes have their own Cache-Control headers managed by the serverless
+  // functions. Intercepting them causes iOS Safari to return null responses
+  // when navigating to them directly, and prevents CDN cache from working.
+  if (request.url.includes("/api/")) return;
 
   event.respondWith(
     caches.match(request).then((cached) => {

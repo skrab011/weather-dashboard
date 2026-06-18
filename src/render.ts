@@ -310,12 +310,12 @@ function renderConditions(
   }
 
   const hasError = !!(hourlyResult.error && gridResult.error);
-  const ts = hourlyResult.lastUpdated ?? gridResult.lastUpdated ?? hourlyResult.lastGoodUpdated;
+  const ts = hourlyResult.lastUpdated ?? gridResult.lastUpdated ?? hourlyResult.lastGoodUpdated ?? gridResult.lastGoodUpdated;
 
   el.innerHTML = `
     <section class="card${hasError ? " card--error" : ""}">
       <h2 class="card-title">Now</h2>
-      ${rows.length ? rows.join("") : '<p class="card-empty">Loading conditions…</p>'}
+      ${rows.length ? rows.join("") : `<p class="card-empty">${hasError ? "Could not load current conditions." : "Loading conditions…"}</p>`}
       ${cardFooter(ts ?? null, hasError ? "Could not load current conditions" : null)}
     </section>
   `;
@@ -414,7 +414,7 @@ function renderAirQuality(
     <section class="card${result.error ? " card--error" : ""}">
       <h2 class="card-title">Air Quality</h2>
       ${rows.join("")}
-      ${cardFooter(ts ? new Date(ts instanceof Date ? ts : ts) : null, result.error)}
+      ${cardFooter(ts, result.error)}
     </section>
   `;
 }
@@ -652,25 +652,41 @@ function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
 // ---------------------------------------------------------------------------
 function renderChart(): void {
   const el = document.getElementById("chart-region")!;
-  const loc       = LOCATIONS[state.activeLocation];
-  const nwsHourly = state.weather[loc.id].hourly.data ?? state.weather[loc.id].hourly.lastGoodData;
-  const caicFcst  = state.caic.pointForecast.data ?? state.caic.pointForecast.lastGoodData;
+  const loc          = LOCATIONS[state.activeLocation];
+  const hourlyResult = state.weather[loc.id].hourly;
+  const nwsHourly    = hourlyResult.data ?? hourlyResult.lastGoodData;
+  const caicFcst     = state.caic.pointForecast.data ?? state.caic.pointForecast.lastGoodData;
 
-  // Show skeleton while NWS hourly is still loading
-  if (!nwsHourly) {
+  // Loading state — NWS hourly not yet resolved
+  if (!nwsHourly && !hourlyResult.error) {
     el.innerHTML = skeletonCard();
     return;
   }
 
+  // Hard error with no fallback
+  if (!nwsHourly && hourlyResult.error) {
+    el.innerHTML = `
+      <section class="card card--error">
+        <h2 class="card-title">Temperature Forecast</h2>
+        <p class="card-empty">Could not load forecast data.</p>
+        ${cardFooter(null, hourlyResult.error)}
+      </section>`;
+    return;
+  }
+
+  const ts = hourlyResult.lastUpdated ?? hourlyResult.lastGoodUpdated;
+  const isStale = !!hourlyResult.error && !!hourlyResult.lastGoodData;
+
   el.innerHTML = `
-    <section class="card">
+    <section class="card${isStale ? " card--error" : ""}">
       <h2 class="card-title">Temperature Forecast</h2>
       <div id="caic-chart-placeholder" class="caic-chart-placeholder"></div>
+      ${cardFooter(ts, hourlyResult.error)}
     </section>
   `;
 
   const placeholder = document.getElementById("caic-chart-placeholder")!;
-  renderOverlayChart(placeholder, nwsHourly, caicFcst, loc.id);
+  renderOverlayChart(placeholder, nwsHourly!, caicFcst, loc.id);
 }
 
 // ---------------------------------------------------------------------------
