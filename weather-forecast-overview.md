@@ -162,3 +162,50 @@ It's the same underlying engine across several **surfaces**, so your settings an
 ## 4. End of overview
 
 Detailed, step-by-step build instructions for both approaches — plus suggested prompts — are in the companion document, **Weather Forecast Instructions**.
+
+---
+
+## 5. What changed from spec during build
+
+*Appended after build completion (June 2026). This section records where the final app diverged from the plan above, and why.*
+
+### Decisions that held exactly as specced
+- NWS as backbone, both locations, hourly + 7-day + alerts, Imperial units
+- PurpleAir 4-mile averaging, EPA correction, AirNow cross-check with hybrid divergence threshold
+- CAIC Weather Summary (issued-by line) + point-forecast numerical data, wrapped in failure isolation
+- Tomer description text only — no transcription, no AI summary (descoped before build started)
+- Consensus brief via Claude Haiku, cached, manual refresh button
+- Dark-mode-first design, PWA manifest, iOS installable
+- Free `*.vercel.app` subdomain, Vercel free tier
+
+### Decisions that changed during build
+
+**Scheduling:** The spec assumed a once/twice-daily scheduled job for the consensus brief. Vercel cron jobs require the Pro plan, which is not available on the free Hobby tier. The brief instead regenerates on demand: the CDN edge cache expires every 10 minutes, and the next page load after expiry triggers a fresh Claude Haiku call. Cost impact is negligible (pennies/month) since the brief is still cached between loads.
+
+**Tomer card:** The spec called for embedding the video. The final implementation shows the video's description text and title only — no iframe embed. This avoids YouTube iframe sizing complexity on mobile and keeps the card lightweight.
+
+**CAIC point-forecast elevation:** Originally estimated at ~10,500 ft. Corrected to **9,219 ft** based on live data returned by the looper API for the Silverthorne coordinates.
+
+**CAIC timezone fix:** The looper encodes Mountain local time as if it were UTC (`Highcharts useUTC: false`). The app adds the correct MDT/MST offset dynamically at request time using `Intl.DateTimeFormat('America/Denver')` so chart timestamps stay accurate across the November clock change.
+
+**Storage backend:** The spec mentioned Vercel KV for brief caching. Vercel KV was not available on the free Hobby account. Switched to **Vercel Blob** (`@vercel/blob`), which is available on the free tier.
+
+**Service worker:** The initial SW cached all same-origin GET requests, including `/api/` routes. This caused iOS Safari to return null responses when navigating directly to API endpoints. Fixed by adding an early return in the fetch handler for any URL containing `/api/`. Cache version bumped to `weather-v2` to clear stale cached API responses.
+
+### Desktop layout (added post-spec)
+
+The original spec was mobile-first only. After all workstreams were complete, a desktop layout was designed and built:
+
+- **960px+ breakpoint:** two-row grid
+- **Top row (30% / 40% / 30%):** Now + Air Quality | Temperature Forecast chart | Consensus Brief
+- **Bottom row — adaptive:**
+  - *Hourly view:* full-width hourly strip; CAIC + Tomer in a 50/50 row below
+  - *7-Day view:* CAIC (30%) | 7-Day (40%) | Tomer (30%)
+- Alert banners always span full width
+- Header and toggle scroll with the page (not sticky) on desktop
+
+### Design system decisions (established during build)
+
+- **Font:** system-ui stack (San Francisco on iPhone, Segoe UI on Windows) — no web font loaded
+- **Accent color:** `#b39ddb` lavender — used for the app title, active location tab, all card headings, wind direction arrows, and PM2.5 sparkline bars
+- **CSS Grid `min-width: 0` rule:** Grid children default to `min-width: auto`, which allows content (particularly the hourly strip) to expand beyond its column. All grid children in the desktop layout have `min-width: 0` applied explicitly.

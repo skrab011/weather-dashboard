@@ -7,8 +7,20 @@
 - The user works from either an **iPhone** or a **Windows desktop**. Tailor all browser instructions accordingly:
   - **iPhone (Safari):** No DevTools available. Can visit URLs directly and paste back what the browser shows. Cannot inspect network requests. For anything requiring network inspection, defer to a Windows desktop session.
   - **Windows desktop (Chrome):** Full DevTools available. Network tab: F12 → Network → filter Fetch/XHR → reload page. Use Chrome-specific instructions (not Mac/Safari instructions).
+- **GitHub token** expires per session. At the start of each session that needs a push, run:
+  `git remote set-url origin https://skrab011:TOKEN@github.com/skrab011/weather-dashboard.git`
 
-Personal weather-consolidation PWA for two Colorado locations. Spec is locked (see `weather-forecast-overview.md` and `weather-pwa-planning.md` for full history/reasoning). This file is the working reference for build sessions.
+---
+
+Personal weather-consolidation PWA for two Colorado locations. All workstreams complete and deployed. See `build-log.md` for a full record of decisions, problems, and solutions.
+
+## Live app
+
+**https://weather-dashboard-five-umber.vercel.app**
+
+- Hosted on Vercel free (Hobby) tier
+- Deploys automatically from `main` branch on push
+- GitHub repo: `skrab011/weather-dashboard`
 
 ## Goal
 
@@ -22,66 +34,96 @@ Priority order for tradeoffs:
 2. Minimal/free *recurring* cost (hosting/server). Build-time tooling (Claude Pro) is a non-issue.
 3. Low maintenance / bulletproof — minimize ongoing tinkering.
 
-## Locked architecture decisions
+---
 
-- **Static PWA frontend + serverless functions + one scheduled job.** Not pure static — secret keys, scheduling, and the AI summary call all require a small backend.
-- **Host:** Vercel or Netlify free tier (HTTPS, serverless functions, scheduling).
-- **Failure isolation:** CAIC integration is walled off — if it breaks, show last-good cached data + timestamp; rest of the app keeps working. Generalize this pattern to every external source.
-- **Units:** Imperial (°F, mph, inches).
-- **Default view:** Hourly forecast, with a toggle to 7-day.
-- Secrets live in `.env`, excluded from git. Set once per dev machine, and once in the host's secret store for runtime.
+## Architecture (as built)
+
+- **Frontend:** Vite + TypeScript, vanilla DOM (no framework), PWA manifest + service worker
+- **Backend:** Vercel serverless functions in `/api/` — one file per endpoint, each self-contained (Vercel cannot bundle cross-file imports within `/api/`)
+- **Hosting:** Vercel free (Hobby) tier — static frontend + serverless functions
+- **Caching:** Vercel Blob (`@vercel/blob`) for the consensus brief JSON. CDN `s-maxage` headers on all `/api/` responses
+- **Scheduling:** No cron (requires Vercel Pro). Consensus brief regenerates on the CDN cache TTL (10 min) — next page load after expiry triggers a fresh AI call
+- **Service worker:** Cache version `weather-v2`. Skips all `/api/` routes so serverless functions are never intercepted
+- **Failure isolation:** Every data source is wrapped in `SourceResult<T>`. Cards render independently; one source failing never affects others. CAIC is the most fragile — last-good data is preserved and shown with a stale timestamp
 
 ## Data sources & rules
 
 | Source | What we pull | Rules |
 |---|---|---|
 | **NWS** (api.weather.gov) | Hourly + 7-day forecast, both locations; active alerts (winter storm, red flag/fire, air quality) | Free, no key. The backbone — must be rock solid. |
-| **CAIC** | Weather Summary write-up (year-round) + numerical point-forecast data (Highcharts JSON feed) | Write-up always shows "Issued by / day, date, time" for freshness. No Avalanche Forecast panel. Undocumented feed — wrap in failure isolation. |
-| **Chris Tomer (YouTube)** | Auto-embed latest "Mountain Weather Update" video + his own description text | No transcription, no AI summary — explicitly descoped to avoid fragility. Filter to videos titled "Mountain Weather Update". |
-| **PurpleAir** | Hyperlocal temp (home only) + PM2.5 (both locations) | 4-mile averaging radius. Temp uses published correction offset, shown side-by-side with NWS temp (never as a replacement for NWS temp). PM2.5 is EPA-smoke-corrected. |
-| **AirNow** (EPA) | Official PM2.5 monitor reading | Cross-check vs. PurpleAir. Flag PM2.5 red when sources differ by **>10% AND >5 µg/m³** (hybrid threshold). Compare against AirNow's freshest hourly value. |
+| **CAIC** | Weather Summary write-up (year-round) + numerical point-forecast data (Highcharts JSON feed) | Write-up always shows "Issued by / day, date, time" for freshness. No Avalanche Forecast panel. Undocumented feed — wrap in failure isolation. Point-forecast elevation: **9,219 ft** (derived from live looper data). |
+| **Chris Tomer (YouTube)** | Latest "Mountain Weather Update" video description text | No transcription, no AI summary — explicitly descoped. Filter to videos with "Mountain Weather Update" in title. |
+| **PurpleAir** | Hyperlocal temp (home only) + PM2.5 (both locations) | 4-mile averaging radius. Temp uses published correction offset, shown side-by-side with NWS temp. PM2.5 is EPA-smoke-corrected. |
+| **AirNow** (EPA) | Official PM2.5 monitor reading | Cross-check vs. PurpleAir. Flag PM2.5 red when sources differ by **>10% AND >5 µg/m³**. |
 
-### Overlay + consensus brief
-- One chart we control, plotting NWS + CAIC on shared axes, with each forecast's **elevation clearly labeled** (avoid misreading elevation gaps as model disagreement).
-- Consensus brief: AI ingests **NWS + CAIC only** (not Tomer), summarized in plain language. Generated on demand (first request) + cached via CDN, with manual refresh. Vercel cron jobs require the Pro plan (not available on Hobby/free tier), so there is no scheduled refresh — the CDN cache expires every 10 minutes, at which point the next page load regenerates. Keep AI cost to pennies/month.
+### Overlay chart + consensus brief
+- Chart: NWS + CAIC temperatures on shared axes, elevation labeled for each series. NWS elevation: ~9,035 ft; CAIC elevation: 9,219 ft.
+- Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC only, returns 3–5 sentence plain-prose summary. Cached in Vercel Blob. Manual refresh button on the card.
 
-### Additional confirmed features
-- Snowfall accumulation (separate from precip)
-- UV index
-- Sunrise / sunset / wind
-- 24-hour PM2.5 trend
-- Offline caching with "last cached [time]" stamp; every data card shows a "last updated [time]" stamp
+## API keys (all provisioned)
 
-### Out of scope
-- CDOT roads/passes/webcams (user takes public transit)
-- Avalanche Forecast / regional discussion panels
+All keys live in Vercel environment variables (runtime) and in `.env` (local dev — not committed to git).
 
-## Accounts / keys needed (not yet provisioned)
-- PurpleAir developer API key (free) — create when build reaches workstream 4
-- YouTube Data API key (free quota) — create when build reaches workstream 7
-- Anthropic Console API key for consensus brief — separate from Claude Pro subscription, which does not cover API usage; pay-as-you-go, pennies/month. Create when build reaches workstream 8. Use a cheap/fast model (e.g. Haiku) for the summary call.
+| Key | Used in |
+|---|---|
+| `PURPLEAIR_API_KEY` | `api/air-quality.ts` |
+| `AIRNOW_API_KEY` | `api/air-quality.ts` |
+| `YOUTUBE_API_KEY` | `api/tomer.ts` |
+| `ANTHROPIC_API_KEY` | `api/brief.ts` |
+| `BLOB_READ_WRITE_TOKEN` | `api/brief.ts` (Vercel Blob for brief cache) |
 
-## Resolved build decisions
-- **Hosting domain:** free `*.vercel.app` / `*.netlify.app` subdomain — no custom domain.
-- **Host (Vercel vs Netlify):** not yet locked — evaluate free-tier scheduled-function limits at workstream 1 and pick the better fit.
-- **AI provider:** Anthropic Claude API (cheap/fast model) for the consensus brief.
-- **CAIC undocumented feed:** approved for personal use, with failure-isolation wrapper as already specified. Avoid hammering it with requests (cache aggressively, fetch on schedule not per-pageview).
+## Design system
 
-## Workstream order
+- **Font:** system-ui, -apple-system, "Segoe UI", sans-serif (San Francisco on iPhone/Mac, Segoe UI on Windows — no web font loaded)
+- **Color scheme:** dark-mode first
+  - Page background: `#0b0d11`
+  - Card background: `#13161d`
+  - Accent / lavender: `#b39ddb` — used for WEATHER title, active tab text + underline, card headings, wind arrows, PM2.5 sparkline bars
+  - Danger: `#ef4444` | Warn: `#f59e0b`
+- **Border radius:** 12px cards, 8px smaller elements
 
-Build in this order (not gated phases, but natural dependencies):
+## Desktop layout (960px+ breakpoint)
 
-1. Project scaffold + hosting skeleton (repo, frontend shell, serverless function folder, deploy to Vercel/Netlify, secret storage)
-2. PWA shell + design system (dark mode, two-location structure, hourly/7-day toggle, manifest + service worker)
-3. NWS integration — both locations, hourly + 7-day, alerts, snowfall, UV, sun times, wind
-4. PurpleAir + AirNow — serverless proxy for key, 4-mile averaging, EPA correction, temp offset, AirNow cross-check + red-flag logic, 24-hour trend
-5. CAIC integration — Weather Summary write-up (issued-by line) + numerical feed, with fail-gracefully wrapper
-6. Overlay chart — NWS + CAIC on shared axes with elevation labels
-7. Tomer embed — latest video + description
-8. Consensus brief — scheduled AI call (NWS + CAIC), caching, manual refresh
-9. Polish + harden — offline behavior, "last updated" stamps, loading/empty/error states, isolation pass
-   - Update service worker to skip all /api/ routes so the browser handles them via HTTP cache (Cache-Control headers set by serverless functions). Currently the SW intercepts same-origin API requests and returns null on iOS Safari when navigating to them directly.
-10. Install on phone + final tuning
+**Top row (30% / 40% / 30%):**
+- Left: Now (conditions) + Air Quality stacked
+- Center: Temperature Forecast chart
+- Right: Consensus Brief
+
+**Bottom row — adaptive per view:**
+- *Hourly view:* Hourly strip spans full width; CAIC Weather Summary + Mountain Weather Update share a 50/50 row below
+- *7-Day view:* CAIC (30%) | 7-Day forecast (40%) | Mountain Weather Update (30%)
+
+Alert banners always span full width above the top row.
+
+Header ("WEATHER" title + location tabs) and Hourly/7-Day toggle scroll with the page on desktop (not sticky). All constrained to `max-width: 1600px` to align with the card columns, except the "WEATHER" title which stays at the screen's left edge.
+
+**Mobile (< 960px):** single-column stack, cards in this order: Alerts → Now → Air Quality → Hourly/7-Day → Temperature Forecast → Consensus Brief → CAIC Weather Summary → Mountain Weather Update.
+
+## CAIC timezone note
+
+The CAIC looper (`looper.avalanche.state.co.us`) encodes Mountain local time as if it were UTC in its Highcharts timestamps (`useUTC: false`). Both `api/caic.ts` and `api/brief.ts` apply a dynamic offset using `Intl.DateTimeFormat` with `America/Denver` to get the correct MDT (6h) or MST (7h) offset at request time. This handles the November clock-change automatically.
+
+## Workstream status — all complete
+
+1. ✅ Project scaffold + hosting skeleton
+2. ✅ PWA shell + design system
+3. ✅ NWS integration (hourly, 7-day, alerts, snowfall, UV, sun times, wind)
+4. ✅ PurpleAir + AirNow (proxy, 4-mile averaging, EPA correction, AirNow cross-check, 24-hr trend)
+5. ✅ CAIC integration (Weather Summary + point-forecast, failure isolation)
+6. ✅ Overlay chart (NWS + CAIC, elevation labels, Chart.js)
+7. ✅ Tomer embed (latest Mountain Weather Update description)
+8. ✅ Consensus brief (Claude Haiku, Vercel Blob cache, manual refresh)
+9. ✅ Polish + harden (SW API bypass, SourceResult isolation, last-updated stamps, error/skeleton states)
+10. ✅ Final tuning (dynamic MST/MDT offset, GPG stop-hook fix, desktop layout)
+
+## Known fragility points (in priority order)
+
+1. **CAIC looper HTML parser** — highest risk. If the looper changes the Highcharts series name from `'Temp'` or restructures the script block, the bracket-counting parser silently returns null. The app falls back to last-good data gracefully, but data goes stale. Monitor `https://weather-dashboard-five-umber.vercel.app/api/caic` — if `pointForecastError` is non-null for more than a day, the feed changed and `api/caic.ts` needs updating.
+2. **NWS API outages** — occasional multi-hour incidents. App falls back to last-good data automatically.
+3. **Vercel Blob token expiry** — if `BLOB_READ_WRITE_TOKEN` lapses, brief still generates but isn't cached; every page load after CDN expiry triggers a fresh AI call (cost impact). Check Vercel dashboard if brief card feels slow on every load.
+4. **YouTube API quota** — 10,000 units/day free quota. Ample for personal use; only a concern if the key is ever leaked.
 
 ## Notes
-- `weather-pwa-planning.md` is the earlier feedback/decision doc — some of its open questions were resolved in `weather-forecast-overview.md` (e.g., Tomer transcription was dropped, CDOT was descoped). Treat the overview doc as the source of truth where the two differ.
+- `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
+- `weather-forecast-overview.md` — locked spec doc with a "What changed during build" section appended at the end.
+- `build-log.md` — detailed record of workstream decisions, bugs encountered, and solutions.
