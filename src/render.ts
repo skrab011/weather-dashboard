@@ -111,36 +111,22 @@ export function renderShell(): void {
     <main class="content" data-view="hourly">
       <div id="alerts-region"></div>
 
-      <div id="conditions-region">
-        ${skeletonCard()}
+      <div class="desktop-top-row">
+        <div id="top-left-col">
+          <div id="conditions-region">${skeletonCard()}</div>
+          <div id="air-quality-region">${skeletonCard()}</div>
+        </div>
+        <div id="chart-region">${skeletonCard()}</div>
+        <div id="brief-region">${skeletonCard()}</div>
       </div>
 
-      <div id="air-quality-region">
-        ${skeletonCard()}
-      </div>
-
-      <div id="hourly-region" class="view-hourly">
-        ${skeletonCard()}
-      </div>
-
-      <div id="forecast-region" class="view-7day">
-        ${skeletonCard()}
-      </div>
-
-      <div id="chart-region">
-        ${skeletonCard()}
-      </div>
-
-      <div id="brief-region">
-        ${skeletonCard()}
-      </div>
-
-      <div id="caic-region">
-        ${skeletonCard()}
-      </div>
-
-      <div id="tomer-region">
-        ${skeletonCard()}
+      <div class="desktop-bottom-row">
+        <div id="caic-region">${skeletonCard()}</div>
+        <div id="forecast-col">
+          <div id="hourly-region" class="view-hourly">${skeletonCard()}</div>
+          <div id="forecast-region" class="view-7day">${skeletonCard()}</div>
+        </div>
+        <div id="tomer-region">${skeletonCard()}</div>
       </div>
     </main>
   `;
