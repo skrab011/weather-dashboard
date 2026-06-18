@@ -67,3 +67,5 @@ A workstream is complete only when:
 | Shared page, first visit (empty localStorage) | Onboarding/empty state prompting the user to add a location. |
 | Shared page, return visit | Previously chosen locations restored from localStorage. |
 | Both pages, mobile + desktop | Correct responsive layout. |
+
+**Deferred verification:** the build/CI environment blocks the geocoder hosts (`census.gov`, `nominatim.openstreetmap.org`), so live `/api/geocode` and location-picker testing cannot run during the build — verify these on the deployed Vercel preview or after merge. W0 and W3 are otherwise build-verified and pushed; see `v2-plan.md` → Build progress for live status.

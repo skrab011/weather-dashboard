@@ -7,6 +7,8 @@ Copy-paste these into Claude Code **one at a time, in order.** Each maps to a wo
 - Every prompt assumes the working rules in `v2-instructions.md` (V1 stays green; feature branch, not `main`; ask before ambiguous architectural changes).
 - If a prompt's verification step fails, paste the failure back rather than moving on.
 
+**Progress (as of 2026-06-18):** ✅ **W0** (Prompt 1) and ✅ **W3** (Prompt 4) are already complete and pushed to the feature branch. **Resume at Prompt 2 (W1)**, then Prompt 3 (W2), then **skip Prompt 4** (W3 done) and continue at Prompt 5 (W4). Note: W3 shipped with a **Census + Nominatim fallback** geocoder (not Census-only), and its live testing is deferred until the branch merges.
+
 ---
 
 ## Prompt 0 — Kickoff / context load
@@ -21,7 +23,7 @@ confirm you've absorbed the plan and flag anything in it you think is wrong or r
 
 ---
 
-## Prompt 1 — W0: Multi-page scaffold
+## Prompt 1 — W0: Multi-page scaffold ✅ (already complete — skip)
 
 ```
 Implement Workstream W0 from v2-plan.md (multi-page scaffold) only.
@@ -89,7 +91,7 @@ no-param/home paths still return identical data. Commit to the feature branch.
 
 ---
 
-## Prompt 4 — W3: Geocoding
+## Prompt 4 — W3: Geocoding ✅ (already complete — skip; built with Census + Nominatim fallback)
 
 ```
 Implement Workstream W3 from v2-plan.md (geocoding).

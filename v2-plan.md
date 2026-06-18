@@ -6,19 +6,33 @@ The plan is sequenced so **the personal page (V1) stays green at every step.** T
 
 ---
 
+## Build progress (branch `claude/weather-dashboard-v2-plan-u0x6jl`)
+
+_Last updated 2026-06-18._
+
+- ✅ **W0 — Multi-page scaffold.** `vite.config.ts` (multi-page input), `shared.html`, `src/shared-main.ts` (placeholder). Build emits both `dist/index.html` and `dist/shared.html`; V1 bundle unchanged. Committed + pushed.
+- ✅ **W3 — Geocoding** (done out of order — it's independent of W1/W2). `api/geocode.ts` (Census → Nominatim fallback, US-only) + `src/shared-page/geocode.ts` (client + `inColorado`). Build/type-check clean. **Live endpoint + picker testing is DEFERRED until the branch merges** — the build environment blocks the geocoder hosts (`census.gov`, `nominatim.openstreetmap.org`) and the owner is on mobile. Test URLs are in the W3 section below.
+- ⏭️ **Next: W1 — Shared-module extraction.** The high-risk, V1-touching step; run in a **fresh session** with Prompt 2 from `v2-prompts.md` for a clean context window.
+- **Remaining:** W2, W4, W5, W6, W7, W8.
+
+**Decision added during the build:**
+- **Geocoder = Census + Nominatim fallback** (upgraded from "Census only"). Census `onelineaddress` is address-grade and unreliable for the bare city/ZIP input casual users type; Nominatim (free, no key) covers that gap. Both US-restricted.
+
+---
+
 ## Workstream map
 
-| WS | Name | Touches V1 code? | Risk |
-|---|---|---|---|
-| **W0** | Multi-page scaffold | No (additive) | Low |
-| **W1** | Shared-module extraction | **Yes** (repoints imports) | **High** |
-| **W2** | Backend parameterization | Yes (back-compat) | Medium |
-| **W3** | Geocoding | No | Low |
-| **W4** | Location picker + persistence | No | Medium |
-| **W5** | Colorado gating | No | Low |
-| **W6** | Dual-mode brief | No (W2 enables) | Medium |
-| **W7** | Polish, PWA, SW, README | Minor | Low |
-| **W8** | QA matrix + merge | No | — |
+| WS | Name | Touches V1 code? | Risk | Status |
+|---|---|---|---|---|
+| **W0** | Multi-page scaffold | No (additive) | Low | ✅ Done |
+| **W1** | Shared-module extraction | **Yes** (repoints imports) | **High** | ⏭️ Next |
+| **W2** | Backend parameterization | Yes (back-compat) | Medium | Planned |
+| **W3** | Geocoding | No | Low | ✅ Done |
+| **W4** | Location picker + persistence | No | Medium | Planned |
+| **W5** | Colorado gating | No | Low | Planned |
+| **W6** | Dual-mode brief | No (W2 enables) | Medium | Planned |
+| **W7** | Polish, PWA, SW, README | Minor | Low | Planned |
+| **W8** | QA matrix + merge | No | — | Planned |
 
 ---
 
@@ -108,15 +122,19 @@ src/shared/
 
 ---
 
-## W3 — Geocoding
+## W3 — Geocoding ✅ Done
 
-**Goal:** turn "Boulder, CO" into `{ lat, lon, state, label }`.
+**Goal:** turn "Boulder, CO" into `{ found, lat, lon, state, label, source }`.
 
-**Steps:**
-1. Add `api/geocode.ts` — a thin proxy to the **US Census Geocoder** (`https://geocoding.geo.census.gov/geocoder/locations/onelineaddress` with `benchmark=Public_AR_Current&format=json`). Proxying server-side avoids CORS surprises and lets us add a short cache header. Return a normalized `{ lat, lon, state, matchedAddress }` (or an empty/`notFound` result). Validate the result is in the US.
-2. Add `src/shared-page/geocode.ts` — frontend client that calls `/api/geocode?q=...`, returns the normalized shape, and computes `inColorado` (`state === "CO"`, with bounding-box fallback).
+**As built:**
+1. `api/geocode.ts` — `GET /api/geocode?q=<address>`. **Census Geocoder first** (`.../onelineaddress?benchmark=Public_AR_Current&format=json`), **OpenStreetMap Nominatim fallback** (`countrycodes=us`) for the city/ZIP/place queries Census can't resolve. US-restricted (Nominatim country filter + a coarse US bounding box). Returns normalized `{ found, lat, lon, state, label, source }` or `{ found:false, reason }`. Self-contained per the `/api` no-cross-import rule; long CDN cache since results are stable. *(Geocoder choice upgraded from Census-only — see Build progress above.)*
+2. `src/shared-page/geocode.ts` — frontend client calling `/api/geocode?q=...`; computes `inColorado` (`state === "CO"`, with a Colorado bounding-box fallback).
 
-**Done when:** searching "Boulder, CO" yields CO coords with `inColorado: true`; "Austin, TX" yields TX coords with `inColorado: false`; "Paris, France" yields a clean not-found / not-US result.
+**Verification — DEFERRED until the branch merges** (build env blocks the geocoder hosts; owner on mobile). On the deployed preview/prod, expect:
+- `/api/geocode?q=Boulder, CO` → `found:true`, `state:"CO"`, ~`40.01,-105.27` (likely `source:"nominatim"`).
+- `/api/geocode?q=1600 Pennsylvania Ave NW, Washington, DC 20500` → `found:true`, `state:"DC"`, `source:"census"`.
+- `/api/geocode?q=Austin, TX` → `found:true`, `state:"TX"`, `inColorado:false`.
+- `/api/geocode?q=Paris, France` → `found:false`.
 
 ---
 

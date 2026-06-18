@@ -1,6 +1,6 @@
 # V2 — Shared Weather Dashboard: Project Overview
 
-> Status: **planning / not yet built.** This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence lives in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
+> Status: **in progress** — W0 (scaffold) and W3 (geocoding) are built on branch `claude/weather-dashboard-v2-plan-u0x6jl`; W1 is next. This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
 
 ---
 
@@ -29,7 +29,8 @@ These were confirmed with the owner before planning and are **not open for re-li
 1. **Deployment:** Same repo, **same Vercel project**. Multi-page Vite build — add `shared.html` alongside `index.html`. Both pages share one serverless `/api/` layer and one set of env vars. One deploy pipeline.
 2. **Sharing scale:** A few friends/family (private link). **Per-location caching is sufficient** — no hard location cap required. (A cap remains a trivial future lever if scope grows.)
 3. **Consensus Brief:** **On-demand generation, cached per location.** Dual-mode — full "Consensus Brief" (NWS + CAIC) inside Colorado; "Forecast Brief" (NWS-only) elsewhere.
-4. **Geographic scope:** **US-only.** NWS (the data backbone) and the US Census Geocoder are both US-only. The picker restricts to US locations and shows a friendly message otherwise. International support is explicitly out of scope (would require replacing NWS).
+4. **Geographic scope:** **US-only.** NWS (the data backbone) is US-only, so the picker restricts to US locations and shows a friendly message otherwise. International support is explicitly out of scope (would require replacing NWS).
+5. **Geocoder (decided during W3, 2026-06-18):** **US Census Geocoder primary, OpenStreetMap Nominatim fallback.** Census is official and address-grade but unreliable for the bare city/ZIP queries casual users type; Nominatim (free, no key) fills that gap. Both kept US-only. (Upgraded from the original "Census only" assumption once city-level behavior was assessed.)
 
 ---
 
@@ -81,7 +82,7 @@ The central insight: **V1's data-fetching layer is already location-parameterize
 
 - **Location picker** — search box → geocode → lat/lon. **Hard cap of 2** locations (same as personal). A friendly empty/onboarding state when no locations are chosen yet.
 - **Persistence** — the two chosen locations stored in `localStorage` (per-device, no accounts, no backend, no logins). Keeps it zero-cost and simple.
-- **Geocoding** — turn "Boulder, CO" into coordinates via the **US Census Geocoder** (free, no key). The same response yields the **state** field, which feeds Colorado gating — coords + state in one call.
+- **Geocoding** — turn "Boulder, CO" into coordinates via `/api/geocode`: **US Census Geocoder** first (free, no key; address-grade), **OpenStreetMap Nominatim** fallback for the city/ZIP/place queries Census can't resolve (free, no key). The response yields a **state** field (Census 2-letter code, or Nominatim ISO3166-2), which feeds Colorado gating — coords + state in one call. *(Built in W3.)*
 
 ---
 

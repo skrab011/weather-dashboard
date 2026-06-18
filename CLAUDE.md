@@ -123,7 +123,7 @@ The CAIC looper (`looper.avalanche.state.co.us`) encodes Mountain local time as 
 3. **Vercel Blob token expiry** — if `BLOB_READ_WRITE_TOKEN` lapses, brief still generates but isn't cached; every page load after CDN expiry triggers a fresh AI call (cost impact). Check Vercel dashboard if brief card feels slow on every load.
 4. **YouTube API quota** — 10,000 units/day free quota. Ample for personal use; only a concern if the key is ever leaked.
 
-## V2 — Shared page (planning, not yet built)
+## V2 — Shared page (in progress)
 
 A **second, separate page** (`shared.html` → `/shared`) for friends/family to enter their own US locations. **Purely additive — must never destabilize V1.** The personal page stays exactly as built. Planning docs:
 
@@ -136,7 +136,8 @@ A **second, separate page** (`shared.html` → `/shared`) for friends/family to 
 1. Same repo, **same Vercel project** — multi-page Vite build (`index.html` + `shared.html`), one `/api/` layer, one set of env vars.
 2. Sharing scale: a few friends/family → per-location caching is sufficient, **no hard location cap** needed.
 3. Consensus Brief: **on-demand, cached per location**; dual-mode — "Consensus Brief" (NWS+CAIC) in CO, "Forecast Brief" (NWS-only) elsewhere.
-4. **US-only** — NWS and the US Census Geocoder are both US-only; picker restricts to US.
+4. **US-only** — NWS is US-only; the picker restricts to US locations.
+5. **Geocoder (decided during W3)** — US Census Geocoder primary, **OpenStreetMap Nominatim fallback**. Census is address-grade but weak on bare city/ZIP queries (what casual users type); Nominatim (free, no key) covers that gap. Both US-restricted.
 
 **Key facts for the build:**
 - `src/nws.ts` is already lat/lon-parameterized (backbone ready). The big effort is **extracting the shared engine into `src/shared/`** and keeping V1 byte-identical.
@@ -144,6 +145,12 @@ A **second, separate page** (`shared.html` → `/shared`) for friends/family to 
 - Colorado gating = an `inColorado` boolean (geocoder `state === "CO"`) that **hides, not errors**, CAIC + Tomer + overlay chart outside CO.
 
 **V2 git note:** build on a feature branch, not `main` (`main` auto-deploys prod V1). Merge to `main` only after V1 regression is verified green and owner approves.
+
+**Build progress (branch `claude/weather-dashboard-v2-plan-u0x6jl`):**
+- ✅ **W0** — multi-page scaffold (`vite.config.ts`, `shared.html`, `src/shared-main.ts` placeholder). Build emits both pages; V1 bundle unchanged.
+- ✅ **W3** — geocoding (`api/geocode.ts` Census+Nominatim, US-only; `src/shared-page/geocode.ts` client + `inColorado`). Done out of order (independent of W1/W2). **Live endpoint + picker testing deferred until the branch merges** — the build env blocks the geocoder hosts and the owner is on mobile.
+- ⏭️ **Next: W1** (shared-module extraction) — the high-risk, V1-touching step. Run in a **fresh session** with Prompt 2 from `v2-prompts.md`.
+- Remaining: W2, W4–W8. See `v2-plan.md` for the live status table.
 
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
