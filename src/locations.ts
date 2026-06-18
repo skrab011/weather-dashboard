@@ -11,7 +11,7 @@ export interface Location {
 export const LOCATIONS: [Location, Location] = [
   {
     id: "home",
-    label: "Silverthorne",
+    label: "Home",
     lat: 39.619625,
     lon: -106.090422,
   },

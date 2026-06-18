@@ -1,7 +1,7 @@
 {
   "name": "Weather Dashboard",
   "short_name": "Weather",
-  "description": "Personal weather consolidation for Silverthorne and Frisco, CO",
+  "description": "Personal weather consolidation for home (Silverthorne) and office (Frisco), CO",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0d11",
@@ -19,6 +19,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
