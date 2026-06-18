@@ -653,12 +653,13 @@ body {
     gap: 0.85rem;
   }
 
-  /* Alert banners, forecast/hourly, CAIC, brief, and Tomer cards span both columns */
+  /* These cards span both columns on desktop */
   #alerts-region,
   #hourly-region,
   #forecast-region,
-  #caic-region,
+  #chart-region,
   #brief-region,
+  #caic-region,
   #tomer-region {
     grid-column: 1 / -1;
   }

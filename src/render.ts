@@ -127,11 +127,15 @@ export function renderShell(): void {
         ${skeletonCard()}
       </div>
 
-      <div id="caic-region">
+      <div id="chart-region">
         ${skeletonCard()}
       </div>
 
       <div id="brief-region">
+        ${skeletonCard()}
+      </div>
+
+      <div id="caic-region">
         ${skeletonCard()}
       </div>
 
@@ -184,8 +188,9 @@ export function renderAll(): void {
   renderAirQuality(weather.airQuality, loc.id);
   renderHourly(weather.hourly);
   renderForecast(weather.forecast);
-  renderCAIC(state.caic.summary);
+  renderChart();
   renderBrief(state.brief);
+  renderCAIC(state.caic.summary);
   renderTomer(state.tomer);
 }
 
@@ -636,16 +641,34 @@ function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
         ? `<p class="caic-issued">${d.issuedBy}</p>`
         : ""}
       <div class="caic-body">${d.bodyHtml}</div>
-      <div id="caic-chart-placeholder" class="caic-chart-placeholder"></div>
       ${cardFooter(ts, result.error)}
     </section>
   `;
+}
 
-  // Render the overlay chart into the placeholder now that the DOM is painted.
-  // Reads NWS hourly for the active location and CAIC point-forecast from state.
-  const loc        = LOCATIONS[state.activeLocation];
-  const nwsHourly  = (state.weather[loc.id].hourly.data ?? state.weather[loc.id].hourly.lastGoodData);
-  const caicFcst   = state.caic.pointForecast.data ?? state.caic.pointForecast.lastGoodData;
+// ---------------------------------------------------------------------------
+// NWS/CAIC Temperature Comparison chart — standalone card.
+// Extracted from the CAIC card so it can be independently positioned.
+// ---------------------------------------------------------------------------
+function renderChart(): void {
+  const el = document.getElementById("chart-region")!;
+  const loc       = LOCATIONS[state.activeLocation];
+  const nwsHourly = state.weather[loc.id].hourly.data ?? state.weather[loc.id].hourly.lastGoodData;
+  const caicFcst  = state.caic.pointForecast.data ?? state.caic.pointForecast.lastGoodData;
+
+  // Show skeleton while NWS hourly is still loading
+  if (!nwsHourly) {
+    el.innerHTML = skeletonCard();
+    return;
+  }
+
+  el.innerHTML = `
+    <section class="card">
+      <h2 class="card-title">Temperature Forecast</h2>
+      <div id="caic-chart-placeholder" class="caic-chart-placeholder"></div>
+    </section>
+  `;
+
   const placeholder = document.getElementById("caic-chart-placeholder")!;
   renderOverlayChart(placeholder, nwsHourly, caicFcst, loc.id);
 }
