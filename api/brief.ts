@@ -106,6 +106,21 @@ async function fetchNWS(): Promise<{ alerts: string; hourly: string; sevenDay: s
 // ---------------------------------------------------------------------------
 // CAIC data fetch
 // ---------------------------------------------------------------------------
+// Return the milliseconds to add to a looper timestamp to convert it to UTC.
+// The looper encodes Mountain local time as if it were UTC (Highcharts
+// useUTC:false), so we add the Mountain UTC offset at request time:
+// 6 h during MDT (UTC−6) and 7 h during MST (UTC−7).
+function looperOffsetMs(): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Denver",
+    timeZoneName: "shortOffset",
+  }).formatToParts(new Date());
+  const tz = parts.find(p => p.type === "timeZoneName")?.value ?? "";
+  const m = tz.match(/GMT-(\d+)/);
+  return m ? parseInt(m[1], 10) * 3_600_000 : 7 * 3_600_000; // fallback: MST
+}
+
+// ---------------------------------------------------------------------------
 function extractArray(text: string, from: number): string | null {
   const start = text.indexOf("[", from);
   if (start === -1) return null;
@@ -119,7 +134,8 @@ function extractArray(text: string, from: number): string | null {
 
 async function fetchCAIC(): Promise<{ summary: string; pointForecast: string }> {
   const uri = encodeURIComponent("/api/v2/zone_weather_forecasts/statewide/current");
-  const today = new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
+  const offsetMs = looperOffsetMs();
+  const today = new Date(Date.now() - offsetMs).toISOString().slice(0, 10);
   const [sr, lr] = await Promise.all([
     fetch(`${CAIC_PROXY}?_api_proxy_uri=${uri}`, { headers: CAIC_HEADERS, signal: AbortSignal.timeout(8_000) }),
     fetch(`${LOOPER_BASE}/iptfcst/ptfcst.php?idate=${today}&res=4&lat=${BRIEF_LAT}&lon=${BRIEF_LON}`, { headers: CAIC_HEADERS, signal: AbortSignal.timeout(8_000) }),
@@ -146,7 +162,7 @@ async function fetchCAIC(): Promise<{ summary: string; pointForecast: string }> 
           pointForecast = rows
             .filter(([ms]) => ms < cutoff)
             .map(([ms, tmpF]) => {
-              const t = new Date(ms + 6 * 3_600_000).toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/Denver" });
+              const t = new Date(ms + offsetMs).toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/Denver" });
               return `${t}: ${tmpF !== null ? Math.round(tmpF) + "°F" : "?"}`;
             }).join("\n");
         } catch { /* leave as Unavailable */ }

@@ -151,11 +151,19 @@ function findSeriesData(html: string, name: string): [number, number | null][] |
   try { return JSON.parse(arrayStr) as [number, number | null][]; } catch { return null; }
 }
 
-// Parse the looper point-forecast HTML page.
-// All Highcharts series are inlined in a <script> block; no AJAX calls.
-// X axis is datetime. Despite looking like UTC Unix ms, the looper encodes
-// Mountain local time (Highcharts useUTC:false) — add 6h to correct to UTC.
-const LOOPER_UTC_OFFSET_MS = 6 * 3_600_000; // MDT = UTC−6
+// Return the milliseconds to add to a looper timestamp to convert it to UTC.
+// The looper encodes Mountain local time as if it were UTC (Highcharts
+// useUTC:false), so we add the Mountain UTC offset at request time:
+// 6 h during MDT (UTC−6) and 7 h during MST (UTC−7).
+function looperOffsetMs(): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Denver",
+    timeZoneName: "shortOffset",
+  }).formatToParts(new Date());
+  const tz = parts.find(p => p.type === "timeZoneName")?.value ?? "";
+  const m = tz.match(/GMT-(\d+)/);
+  return m ? parseInt(m[1], 10) * 3_600_000 : 7 * 3_600_000; // fallback: MST
+}
 
 function parseLooperHtml(html: string): Array<Record<string, unknown>> {
   const elevMatch = html.match(/var\s+elev\s*=\s*([\d.]+)/);
@@ -171,8 +179,9 @@ function parseLooperHtml(html: string): Array<Record<string, unknown>> {
   const precipData = findSeriesData(html, "Precip");
   const snowData  = findSeriesData(html, "Snow");
 
+  const offsetMs = looperOffsetMs();
   return tempData.map(([timestampMs, tmpF], i) => ({
-    dateTime:     new Date(timestampMs + LOOPER_UTC_OFFSET_MS).toISOString(),
+    dateTime:     new Date(timestampMs + offsetMs).toISOString(),
     tmpF:         tmpF ?? null,
     windSpeedMph: windData?.[i]?.[1] ?? null,
     windGustMph:  gustData?.[i]?.[1] ?? null,
@@ -185,7 +194,7 @@ function parseLooperHtml(html: string): Array<Record<string, unknown>> {
 
 // Fetch the point-forecast HTML page and extract the embedded series data.
 async function fetchPointForecast(): Promise<Array<Record<string, unknown>>> {
-  const today = new Date(Date.now() - 6 * 3_600_000).toISOString().slice(0, 10);
+  const today = new Date(Date.now() - looperOffsetMs()).toISOString().slice(0, 10);
   const url =
     `${LOOPER_BASE}/iptfcst/ptfcst.php` +
     `?idate=${today}&res=4&lat=${POINT_LAT}&lon=${POINT_LON}`;
