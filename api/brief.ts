@@ -146,7 +146,7 @@ async function fetchCAIC(): Promise<{ summary: string; pointForecast: string }> 
           pointForecast = rows
             .filter(([ms]) => ms < cutoff)
             .map(([ms, tmpF]) => {
-              const t = new Date(ms).toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/Denver" });
+              const t = new Date(ms + 6 * 3_600_000).toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/Denver" });
               return `${t}: ${tmpF !== null ? Math.round(tmpF) + "°F" : "?"}`;
             }).join("\n");
         } catch { /* leave as Unavailable */ }

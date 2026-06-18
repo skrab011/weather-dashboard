@@ -153,7 +153,10 @@ function findSeriesData(html: string, name: string): [number, number | null][] |
 
 // Parse the looper point-forecast HTML page.
 // All Highcharts series are inlined in a <script> block; no AJAX calls.
-// X axis is datetime (Unix ms UTC). Temperature series is named 'Temp'.
+// X axis is datetime. Despite looking like UTC Unix ms, the looper encodes
+// Mountain local time (Highcharts useUTC:false) — add 6h to correct to UTC.
+const LOOPER_UTC_OFFSET_MS = 6 * 3_600_000; // MDT = UTC−6
+
 function parseLooperHtml(html: string): Array<Record<string, unknown>> {
   const elevMatch = html.match(/var\s+elev\s*=\s*([\d.]+)/);
   const elevFt = elevMatch ? parseFloat(elevMatch[1]) : null;
@@ -169,7 +172,7 @@ function parseLooperHtml(html: string): Array<Record<string, unknown>> {
   const snowData  = findSeriesData(html, "Snow");
 
   return tempData.map(([timestampMs, tmpF], i) => ({
-    dateTime:     new Date(timestampMs).toISOString(),
+    dateTime:     new Date(timestampMs + LOOPER_UTC_OFFSET_MS).toISOString(),
     tmpF:         tmpF ?? null,
     windSpeedMph: windData?.[i]?.[1] ?? null,
     windGustMph:  gustData?.[i]?.[1] ?? null,
