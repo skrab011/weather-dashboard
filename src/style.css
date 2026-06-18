@@ -80,7 +80,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
   margin-bottom: 0.5rem;
 }
 
