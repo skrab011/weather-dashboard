@@ -121,11 +121,11 @@ export function renderShell(): void {
       </div>
 
       <div class="desktop-bottom-row">
-        <div id="caic-region">${skeletonCard()}</div>
         <div id="forecast-col">
           <div id="hourly-region" class="view-hourly">${skeletonCard()}</div>
           <div id="forecast-region" class="view-7day">${skeletonCard()}</div>
         </div>
+        <div id="caic-region">${skeletonCard()}</div>
         <div id="tomer-region">${skeletonCard()}</div>
       </div>
     </main>

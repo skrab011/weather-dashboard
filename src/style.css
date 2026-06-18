@@ -684,47 +684,68 @@ body {
     gap: 1rem;
   }
 
-  /* Bottom row: same proportions; each column stretches to the tallest card */
-  .desktop-bottom-row {
-    display: grid;
-    grid-template-columns: 30fr 40fr 30fr;
-    gap: 1rem;
-    align-items: stretch;
-  }
-
   /* Prevent grid children from blowing out their column (min-width:auto trap) */
   .desktop-top-row > *,
   .desktop-bottom-row > * {
     min-width: 0;
   }
 
-  /* Stretch the card inside each bottom-row cell to fill the cell height */
-  #caic-region,
-  #forecast-col,
-  #tomer-region {
+  /* Named grid areas so we can reshape the bottom row per view */
+  #forecast-col { grid-area: forecast; }
+  #caic-region  { grid-area: caic; }
+  #tomer-region { grid-area: tomer; }
+
+  /* Hourly view: strip spans full width; CAIC and Tomer share a row below */
+  .content[data-view="hourly"] .desktop-bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "forecast forecast"
+      "caic     tomer";
+    gap: 1rem;
+    align-items: start;
+  }
+
+  /* 7-Day view: three columns matching the top row proportions */
+  .content[data-view="7day"] .desktop-bottom-row {
+    display: grid;
+    grid-template-columns: 30fr 40fr 30fr;
+    grid-template-areas: "caic forecast tomer";
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  /* Stretch CAIC and Tomer cards in 7-day view to match the 7-day card height */
+  .content[data-view="7day"] #caic-region,
+  .content[data-view="7day"] #tomer-region {
     display: flex;
     flex-direction: column;
   }
 
-  #caic-region > .card,
-  #tomer-region > .card {
+  .content[data-view="7day"] #caic-region > .card,
+  .content[data-view="7day"] #tomer-region > .card {
     flex: 1;
   }
 
-  /* Forecast column: no gap — only one of hourly/7-day is ever visible */
+  /* Forecast column: no gap — only one child is ever visible */
   #forecast-col {
     gap: 0;
   }
 
-  /* Active forecast card fills the column height */
-  #hourly-region,
-  #forecast-region {
-    display: flex;
-    flex-direction: column;
+  /* Thin visible scrollbar on the hourly strip so desktop users can scroll
+     the rare case where 24 hours slightly exceed the full-width container */
+  .hourly-strip {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
   }
 
-  #hourly-region > .card,
-  #forecast-region > .card {
-    flex: 1;
+  .hourly-strip::-webkit-scrollbar {
+    display: block;
+    height: 4px;
+  }
+
+  .hourly-strip::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
   }
 }
