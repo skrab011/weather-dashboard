@@ -230,7 +230,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--accent);
   padding: 0.85rem 1rem 0.5rem;
 }
 
