@@ -123,6 +123,28 @@ The CAIC looper (`looper.avalanche.state.co.us`) encodes Mountain local time as 
 3. **Vercel Blob token expiry** — if `BLOB_READ_WRITE_TOKEN` lapses, brief still generates but isn't cached; every page load after CDN expiry triggers a fresh AI call (cost impact). Check Vercel dashboard if brief card feels slow on every load.
 4. **YouTube API quota** — 10,000 units/day free quota. Ample for personal use; only a concern if the key is ever leaked.
 
+## V2 — Shared page (planning, not yet built)
+
+A **second, separate page** (`shared.html` → `/shared`) for friends/family to enter their own US locations. **Purely additive — must never destabilize V1.** The personal page stays exactly as built. Planning docs:
+
+- `v2-overview.md` — what V2 is, architecture (two pages / one shared engine), locked decisions.
+- `v2-instructions.md` — working rules for the V2 build (V1 regression rule, git workflow, constraints).
+- `v2-plan.md` — step-by-step workstreams (W0–W8).
+- `v2-prompts.md` — copy-paste build prompts, one per workstream.
+
+**Locked decisions (owner Q&A 2026-06-18):**
+1. Same repo, **same Vercel project** — multi-page Vite build (`index.html` + `shared.html`), one `/api/` layer, one set of env vars.
+2. Sharing scale: a few friends/family → per-location caching is sufficient, **no hard location cap** needed.
+3. Consensus Brief: **on-demand, cached per location**; dual-mode — "Consensus Brief" (NWS+CAIC) in CO, "Forecast Brief" (NWS-only) elsewhere.
+4. **US-only** — NWS and the US Census Geocoder are both US-only; picker restricts to US.
+
+**Key facts for the build:**
+- `src/nws.ts` is already lat/lon-parameterized (backbone ready). The big effort is **extracting the shared engine into `src/shared/`** and keeping V1 byte-identical.
+- `api/air-quality.ts` (hardcoded home/office map) and `api/brief.ts` (hardcoded home coords, single blob, CO-only prompt) need lat/lon params + back-compat defaults.
+- Colorado gating = an `inColorado` boolean (geocoder `state === "CO"`) that **hides, not errors**, CAIC + Tomer + overlay chart outside CO.
+
+**V2 git note:** build on a feature branch, not `main` (`main` auto-deploys prod V1). Merge to `main` only after V1 regression is verified green and owner approves.
+
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
 - `weather-forecast-overview.md` — locked spec doc with a "What changed during build" section appended at the end.
