@@ -45,7 +45,7 @@ const LOC_ELEV_FT: Record<string, number> = {
 const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
 
 // Design-system colours — must match style.css custom properties.
-const COLOR_NWS   = "#4a9eff"; // --accent
+const COLOR_NWS   = "#b39ddb"; // --accent (lavender)
 const COLOR_CAIC  = "#f59e0b"; // --warn
 const COLOR_GRID  = "#252a38"; // --border
 const COLOR_TICKS = "#6b7280"; // --muted
@@ -120,7 +120,7 @@ export function renderOverlayChart(
       label:           `NWS (${elev(nwsElev)})`,
       data:            nwsTemps,
       borderColor:     COLOR_NWS,
-      backgroundColor: "rgba(74,158,255,0.07)",
+      backgroundColor: "rgba(179,157,219,0.07)",
       borderWidth:     2,
       pointRadius:     0,       // hide individual points — too cluttered at 48hrs
       tension:         0.3,

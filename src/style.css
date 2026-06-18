@@ -16,16 +16,16 @@
   --muted:         #6b7280;   /* timestamps, placeholders */
 
   /* Accent / interactive */
-  --accent:        #4a9eff;   /* active tab underline, links */
-  --accent-dim:    #1e3a5f;   /* active tab background tint */
+  --accent:        #b39ddb;   /* active tab underline, links */
+  --accent-dim:    #241c3a;   /* active tab background tint */
 
   /* Severity */
   --danger:        #ef4444;   /* warnings, errors */
   --danger-bg:     #2d1515;
   --warn:          #f59e0b;   /* advisories, watches */
   --warn-bg:       #2d2010;
-  --info:          #4a9eff;
-  --info-bg:       #0f1f3a;
+  --info:          #b39ddb;
+  --info-bg:       #1a1430;
 
   /* Misc */
   --radius:        12px;
