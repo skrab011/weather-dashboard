@@ -8,15 +8,26 @@ The plan is sequenced so **the personal page (V1) stays green at every step.** T
 
 ## Build progress (branch `claude/weather-dashboard-v2-plan-u0x6jl`)
 
-_Last updated 2026-06-18._
+_Last updated 2026-06-19._
 
 - ✅ **W0 — Multi-page scaffold.** `vite.config.ts` (multi-page input), `shared.html`, `src/shared-main.ts` (placeholder). Build emits both `dist/index.html` and `dist/shared.html`; V1 bundle unchanged. Committed + pushed.
 - ✅ **W3 — Geocoding** (done out of order — it's independent of W1/W2). `api/geocode.ts` (Census → Nominatim fallback, US-only) + `src/shared-page/geocode.ts` (client + `inColorado`). Build/type-check clean. **Live endpoint + picker testing is DEFERRED until the branch merges** — the build environment blocks the geocoder hosts (`census.gov`, `nominatim.openstreetmap.org`) and the owner is on mobile. Test URLs are in the W3 section below.
-- ⏭️ **Next: W1 — Shared-module extraction.** The high-risk, V1-touching step; run in a **fresh session** with Prompt 2 from `v2-prompts.md` for a clean context window.
+- ✅ **W1 — Shared-module extraction.** The high-risk, V1-touching step, done in the four sub-steps below — one commit each so a regression is easy to bisect. The full engine now lives in `src/shared/` and V1 imports it. **V1 regression verified green** (see "How V1 was verified" below). Committed + pushed.
+- ⏭️ **Next: W2 — Backend parameterization.** Run with Prompt 3 from `v2-prompts.md`.
 - **Remaining:** W2, W4, W5, W6, W7, W8.
 
-**Decision added during the build:**
+**Decisions added during the build:**
 - **Geocoder = Census + Nominatim fallback** (upgraded from "Census only"). Census `onelineaddress` is address-grade and unreliable for the bare city/ZIP input casual users type; Nominatim (free, no key) covers that gap. Both US-restricted.
+- **`Location` type relocated to the shared engine** (W1). The `Location` interface moved from `src/locations.ts` into `src/shared/types.ts` so shared modules don't depend on V1's config; `src/locations.ts` keeps only the two-element `LOCATIONS` constant.
+- **Store is a factory + thin V1 wrapper** (W1). `src/shared/store.ts` exports `createStore(locations)`; `src/store.ts` instantiates it with `LOCATIONS` and re-exports the instance members under their original names, so `main.ts`/`render.ts` were untouched by the store refactor. `setActiveLocation` now takes `number` (not `0 | 1`) to support N locations.
+- **`render.ts` stays at top level** as V1's thin wrapper (W1) — the plan offered "`src/personal/` or stays at top level"; we chose the lower-churn option. It owns only the page shell (`renderShell`, incl. the fixed two-tab bar) and the `renderAll` orchestrator that feeds V1 state into the shared renderers.
+- **`airQuality.ts` + `brief.ts` were moved as-is in W1, refactor deferred.** Relocated into `src/shared/` during W1 sub-step 4 with **no signature change** — the lat/lon (air-quality) and dual-mode (brief) refactors belong to W2/W6. So when W2 starts, both files already live in `src/shared/`; only their signatures change.
+- **Known gap for V2:** `src/shared/chart.ts` still has a `LOC_ELEV_FT` map keyed by `"home"`/`"office"` for the NWS elevation label (moved as-is); any other `locId` falls back to `9,000 ft`. V1 is unaffected. Generalize for the shared page in W5/W6 or W7 polish.
+
+**Out-of-plan V1 fix shipped during this session (2026-06-19):** a pre-existing V1 CSS bug — in the 7-day desktop view the CAIC and Mountain Weather Update cards were stretched to the 7-Day card's height (`align-items: stretch` + a `flex:1` block) — was corrected to `align-items: start` so the cards size to their own content. As an independent V1 bug it was committed **directly to `main`** (production V1) and then **merged into this feature branch** (hence the branch's merge commit from `main`). No effect on the V2 work.
+
+### How V1 was verified byte-for-byte (W1)
+The build/CI environment blocks the live weather hosts (NWS/PurpleAir/AirNow/CAIC), so V1 couldn't be exercised against real data here. Because the rendered HTML is a pure function of state, V1 was instead proven unchanged at the **source level**: a normalized set-diff of the old `render.ts`/`store.ts` against the new `render.ts` + `cards.ts` + `store.ts` showed **zero differences in any HTML template literal** — every diff line was an intended structural change (function exports, argument passing, the two decouplings, import paths). The emitted V1 bundle was also byte-identical across the file-move sub-steps. The owner then confirmed the deployed preview matched production with no structural differences. **This is the reusable technique** when the weather hosts are unreachable: diff the rendered-HTML source, don't rely on a live render.
 
 ---
 
@@ -25,7 +36,7 @@ _Last updated 2026-06-18._
 | WS | Name | Touches V1 code? | Risk | Status |
 |---|---|---|---|---|
 | **W0** | Multi-page scaffold | No (additive) | Low | ✅ Done |
-| **W1** | Shared-module extraction | **Yes** (repoints imports) | **High** | ⏭️ Next |
+| **W1** | Shared-module extraction | **Yes** (repoints imports) | **High** | ✅ Done |
 | **W2** | Backend parameterization | Yes (back-compat) | Medium | Planned |
 | **W3** | Geocoding | No | Low | ✅ Done |
 | **W4** | Location picker + persistence | No | Medium | Planned |
@@ -65,35 +76,42 @@ _Last updated 2026-06-18._
 
 ---
 
-## W1 — Shared-module extraction (the big one)
+## W1 — Shared-module extraction (the big one) ✅ Done
+
+> **Built 2026-06-19.** All four sub-steps below shipped, one commit each. Deviations from the plan as written are flagged inline with **[as built]** and summarized under "Decisions added during the build" above. The target layout was achieved; `airQuality.ts`/`brief.ts` were relocated but **not** yet refactored (their W2/W6 signature work is still pending).
 
 **Goal:** move the reusable engine into `src/shared/` and repoint V1's imports there, with **zero behavioral change to V1.** This is the bulk of the effort and the highest risk; do it carefully and verify V1 after.
 
 **Target layout:**
 ```
 src/shared/
-  types.ts        ← moved as-is
+  types.ts        ← moved as-is [as built: + the Location interface, moved here from locations.ts]
   nws.ts          ← moved as-is (already lat/lon-parameterized)
   sun.ts          ← moved as-is
-  chart.ts        ← moved as-is
+  chart.ts        ← moved as-is [as built: still has the home/office LOC_ELEV_FT hardcode — see Known gap]
   caic.ts         ← moved as-is (CO-only fetch; gating decided by caller)
   tomer.ts        ← moved as-is (CO-only fetch)
-  airQuality.ts   ← moved; refactored to accept lat/lon (see W2 frontend half)
-  brief.ts        ← moved; refactored for params + mode (see W6 frontend half)
-  store.ts        ← refactored into a store factory seeded with N locations
+  airQuality.ts   ← [as built: moved as-is in W1; lat/lon refactor deferred to W2 frontend half]
+  brief.ts        ← [as built: moved as-is in W1; params + mode refactor deferred to W6 frontend half]
+  store.ts        ← refactored into a store factory seeded with N locations [as built: createStore(locations)]
   cards.ts        ← pure card renderers extracted from render.ts
 ```
+
+**Top-level V1 glue that stayed (imports from `src/shared/`):** `src/locations.ts` (the two fixed `LOCATIONS`), `src/store.ts` (thin wrapper around `createStore(LOCATIONS)`), `src/render.ts` (shell + `renderAll` orchestrator), `src/main.ts` (boot).
 
 **Steps (do in this order, verifying build between moves):**
 1. **Move the pure, already-reusable modules first** — `types.ts`, `nws.ts`, `sun.ts`, `chart.ts`, `caic.ts`, `tomer.ts` → `src/shared/`. Update `src/main.ts` and `src/render.ts` import paths. Build. **Verify V1 identical.**
 2. **Extract pure card renderers** from `src/render.ts` into `src/shared/cards.ts`: `renderAlerts`, `renderConditions`, `renderAirQuality`, `renderSparkline`, `renderHourly`, `renderForecast`, `renderCAIC`, `renderChart`, `renderBrief`, `renderTomer`, plus shared helpers (`cardFooter`, `fmtTime`, `fmtDay`, `fmtWind`, `skeletonCard`, `alertSeverity`, `WIND_DIR_DEG`). Make each renderer take the data it needs as **arguments** (it mostly already does) rather than reaching into module-scoped `LOCATIONS`/`state`. The personal `render.ts` becomes a thin wrapper that wires `state` → these pure renderers.
    - **Decouple the two V1 hardcodes:** `locId === "home"` for PA temp becomes a `showPaTemp: boolean` (or `paTempLabel`) argument; the fixed 2-tab assumption stays in each page's shell, not in the shared renderers.
+   - **[as built]** `renderConditions` takes `showPaTemp: boolean` (V1 passes `loc.id === "home"`). `renderAirQuality` dropped its formerly-unused `locId` param entirely. `renderChart` takes `(hourlyResult, pointForecastResult, locId)` as args instead of reading `state`. `renderBrief` takes an `onRefresh: () => Promise<void>` callback so `cards.ts` has **no** store/fetch dependency — V1's `renderAll` supplies the closure that calls `fetchBrief` + `updateBrief`. (Net effect: this relocated the brief's refresh path out of the old `renderBrief` and into `render.ts`'s `renderAll` — a second `fetchBrief` call site that W2 must keep byte-identical.)
 3. **Generalize the store** (`src/store.ts` → `src/shared/store.ts`) into a factory that takes the location list and builds the `weather` record + `activeLocation`/`activeView`. The personal entry calls it with the two fixed locations; the shared entry calls it with the chosen locations.
+   - **[as built]** `src/store.ts` is now a thin wrapper: `createStore(LOCATIONS)` + re-export of the instance members under their original names, so `main.ts`/`render.ts` were untouched. `setActiveLocation` is typed `(index: number)`.
 4. Repoint `src/main.ts` to import everything from `src/shared/`. Personal `render.ts` either moves to a thin `src/personal/` wrapper or stays at top level importing from `shared/`.
+   - **[as built]** `render.ts` stayed at top level (lower churn). This sub-step also relocated `airQuality.ts` + `brief.ts` into `src/shared/` (as-is) so `main.ts` imports the whole engine from one place.
 
-**V1 check (gate — do not proceed to W2+ until green):** full verification matrix row "Personal page, both tabs" — identical layout, identical data, identical copy. Diff the rendered DOM if needed.
+**V1 check (gate — do not proceed to W2+ until green):** full verification matrix row "Personal page, both tabs" — identical layout, identical data, identical copy. Diff the rendered DOM if needed. **[as built]** Verified via source-level normalized HTML-template diff (live weather hosts are blocked in the build env) + identical bundle output + owner preview-vs-prod comparison. See "How V1 was verified" above.
 
-**Done when:** V1 is provably unchanged and both entries import the same shared engine (no copy-paste divergence).
+**Done when:** V1 is provably unchanged and both entries import the same shared engine (no copy-paste divergence). **✅ Met** — though the shared *entry* (`shared-main.ts`) doesn't consume the engine yet; that wiring is W4. W1's deliverable is the extracted, V1-backing engine.
 
 ---
 
@@ -113,10 +131,15 @@ src/shared/
 4. Keep the same US bbox validation.
 
 ### Frontend halves (in `src/shared/`)
-- `airQuality.ts`: change the fetch signature from `(locationId)` to `(lat, lon, { temp })`; build the query string accordingly. Personal entry passes the home/office coords (or keeps the `location=` shortcut — pick one and apply consistently; coords is cleaner long-term but `location=` keeps V1 byte-identical, so prefer `location=` for the personal entry).
-- `brief.ts`: add `(lat, lon, { inColorado })` params; default (no args) reproduces V1.
+> **W1 left these files already relocated into `src/shared/` with their V1 signatures intact** — W2 only changes the signatures, it does not move anything. Three V1 call sites must keep emitting byte-identical requests; verify each:
+> - `src/main.ts` → `fetchAirQuality(locId, prev)` (currently sends `?location=home|office`).
+> - `src/main.ts` → `fetchBrief(state.brief)` (initial load, no params).
+> - `src/render.ts` → `fetchBrief(brief, true)` (the refresh-button closure relocated here in W1; sends `?refresh=true`).
 
-**V1 check:** personal page air-quality and brief cards identical; personal brief still reads/writes `consensus-brief.json`.
+- `airQuality.ts`: change the fetch signature from `(locationId: "home" | "office")` to `(lat, lon, { temp })`; build the query string accordingly. **Prefer keeping the `location=` shortcut for the personal entry** so V1's request stays byte-identical — i.e. accept either the legacy `("home"|"office")` form or `(lat, lon, opts)`, and leave `main.ts`'s call alone (or give it a back-compat default that still sends `?location=home|office`). Coords is cleaner long-term but `location=` is the safest V1 path.
+- `brief.ts`: add `(lat, lon, { inColorado })` params; **default (no args) reproduces V1** at *both* call sites above (initial load + refresh).
+
+**V1 check:** personal page air-quality and brief cards identical; personal brief still reads/writes `consensus-brief.json`; the two `fetchBrief` call sites and the one `fetchAirQuality` call site emit unchanged requests.
 
 **Done when:** `https://<deploy>/api/air-quality?lat=30.27&lon=-97.74&temp=false` and `https://<deploy>/api/brief?lat=30.27&lon=-97.74&co=false&mode=forecast` return valid data for a non-CO location, and the no-param paths are unchanged.
 

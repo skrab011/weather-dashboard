@@ -18,7 +18,7 @@ Copy-paste these into Claude Code **one at a time, in order.** Each maps to a wo
 - Every prompt assumes the working rules in `v2-instructions.md` (V1 stays green; feature branch, not `main`; ask before ambiguous architectural changes).
 - If a prompt's verification step fails, paste the failure back rather than moving on.
 
-**Progress (as of 2026-06-18):** ✅ **W0** (Prompt 1) and ✅ **W3** (Prompt 4) are already complete and pushed to the feature branch. **Resume at Prompt 2 (W1)**, then Prompt 3 (W2), then **skip Prompt 4** (W3 done) and continue at Prompt 5 (W4). Note: W3 shipped with a **Census + Nominatim fallback** geocoder (not Census-only), and its live testing is deferred until the branch merges.
+**Progress (as of 2026-06-19):** ✅ **W0** (Prompt 1), ✅ **W3** (Prompt 4), and ✅ **W1** (Prompt 2) are complete and pushed to the feature branch. **Resume at Prompt 3 (W2)**, then **skip Prompt 4** (W3 done) and continue at Prompt 5 (W4). Notes: W3 shipped with a **Census + Nominatim fallback** geocoder (not Census-only); W1 relocated `airQuality.ts` + `brief.ts` into `src/shared/` **as-is** (their signature refactors are W2/W6), and decoupled the renderer PA-temp hardcode. Live testing of the geocoder + any V2 render is deferred until the branch merges.
 
 ---
 
@@ -52,7 +52,7 @@ to main.
 
 ---
 
-## Prompt 2 — W1: Shared-module extraction (do carefully)
+## Prompt 2 — W1: Shared-module extraction ✅ (already complete — skip)
 
 ```
 Implement Workstream W1 from v2-plan.md (shared-module extraction). This is the highest-risk step
@@ -81,9 +81,24 @@ their own commit so they're easy to bisect. Do not merge to main.
 Implement Workstream W2 from v2-plan.md (backend parameterization), keeping all V1 call paths
 byte-identical.
 
+W1 CONTEXT (already done — don't redo): the shared engine is extracted to src/shared/. The two
+frontend fetch modules you'll touch — src/shared/airQuality.ts and src/shared/brief.ts — were
+ALREADY relocated there in W1 with their V1 signatures intact. So MOVE NOTHING in this step; only
+change signatures + the api/ files. Also note the renderer PA-temp hardcode is already decoupled
+(renderConditions takes a showPaTemp boolean) — leave the renderers alone.
+
+There are exactly THREE V1 frontend call sites whose emitted HTTP request must stay byte-identical.
+Verify each by reading it before and after:
+- src/main.ts  → fetchAirQuality(locId, prev)   currently sends GET /api/air-quality?location=home|office
+- src/main.ts  → fetchBrief(state.brief)         sends GET /api/brief        (initial load)
+- src/render.ts → fetchBrief(brief, true)        sends GET /api/brief?refresh=true  (refresh button;
+                                                 this closure moved into renderAll during W1)
+
 api/air-quality.ts:
-- Accept ?lat=&lon= in addition to the existing ?location=home|office (existing map stays the V1
-  path, unchanged). Add a temp flag so PA temperature is only returned when requested.
+- Accept ?lat=&lon= in addition to the existing ?location=home|office. If location= is present, use
+  the existing hardcoded map (the V1 path — unchanged). If lat/lon are present, use those.
+- Add a temp flag so PA temperature is only returned when requested; the location= path keeps its
+  current home=temp / office=no-temp behavior via the existing map.
 - Reject coordinates outside a US bounding box with a clean error.
 
 api/brief.ts:
@@ -93,11 +108,27 @@ api/brief.ts:
 - Same US bbox validation. (Full dual-mode prompt comes in W6 — for now just wire the param
   plumbing and cache keys.)
 
-Frontend halves in src/shared/: update airQuality.ts and brief.ts signatures to take lat/lon,
-with defaults that reproduce V1 exactly.
+Frontend halves in src/shared/ (signatures only — files already live there):
+- airQuality.ts: generalize fetchAirQuality. The current signature is ("home"|"office", prev).
+  PREFER keeping the location= shortcut for the personal entry so main.ts's request is byte-identical
+  — accept either the legacy ("home"|"office", prev) form OR a (lat, lon, { temp }, prev) form, and
+  leave main.ts's call site untouched (or give it a back-compat default that still sends
+  ?location=home|office).
+- brief.ts: add optional (lat, lon, { inColorado }) params with defaults such that BOTH no-extra-arg
+  call sites above (initial load AND refresh) reproduce V1 exactly — same URLs, same blob.
 
-Verify: give me full copy-paste URLs to test a non-CO location on both endpoints, and confirm the
-no-param/home paths still return identical data. Commit to the feature branch.
+CRITICAL: this touches V1 call paths, so re-run the V1 regression check from v2-instructions.md.
+W2 changes no renderers, so the W1 HTML-template diff doesn't apply; instead, since the build env
+can't reach the live weather/PA hosts, confirm V1 by: (a) the three call sites above are unchanged
+or back-compat-defaulted so they emit the same requests, (b) tsc/build is green, and (c) the api/
+no-param / location= branches are logically identical to today. Keep the V1-touching changes in
+their own commit.
+
+Verify: give me full copy-paste URLs to test a non-CO location on both endpoints (e.g.
+.../api/air-quality?lat=30.27&lon=-97.74&temp=false and
+.../api/brief?lat=30.27&lon=-97.74&co=false&mode=forecast), and confirm the no-param/home paths still
+return identical data and the personal brief still reads/writes consensus-brief.json. Commit to the
+feature branch. Do not merge to main.
 ```
 
 ---

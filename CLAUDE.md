@@ -149,8 +149,10 @@ A **second, separate page** (`shared.html` → `/shared`) for friends/family to 
 **Build progress (branch `claude/weather-dashboard-v2-plan-u0x6jl`):**
 - ✅ **W0** — multi-page scaffold (`vite.config.ts`, `shared.html`, `src/shared-main.ts` placeholder). Build emits both pages; V1 bundle unchanged.
 - ✅ **W3** — geocoding (`api/geocode.ts` Census+Nominatim, US-only; `src/shared-page/geocode.ts` client + `inColorado`). Done out of order (independent of W1/W2). **Live endpoint + picker testing deferred until the branch merges** — the build env blocks the geocoder hosts and the owner is on mobile.
-- ⏭️ **Next: W1** (shared-module extraction) — the high-risk, V1-touching step. Run in a **fresh session** with Prompt 2 from `v2-prompts.md`.
+- ✅ **W1** — shared-module extraction. The whole engine now lives in `src/shared/` (types, nws, sun, chart, caic, tomer, airQuality, brief, store factory, cards) and V1 imports it. `Location` type moved to `shared/types.ts`; store is `createStore(locations)` + a thin `src/store.ts` wrapper; `render.ts` stayed top-level as a thin shell + orchestrator. `airQuality.ts`/`brief.ts` were relocated as-is (their lat/lon + dual-mode refactors are W2/W6). **V1 verified byte-for-byte unchanged** via source-level HTML-template diff (live weather hosts are blocked in the build env). Known gap: `chart.ts` elevation label still home/office-keyed.
+- ⏭️ **Next: W2** (backend parameterization) — Prompt 3 from `v2-prompts.md`.
 - Remaining: W2, W4–W8. See `v2-plan.md` for the live status table.
+- **Out-of-plan V1 fix (2026-06-19):** corrected the 7-day desktop layout so CAIC + Mountain Weather Update cards size to their own content (was `align-items: stretch`). Shipped **directly to `main`** and merged into the V2 branch.
 
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.

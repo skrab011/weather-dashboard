@@ -1,6 +1,6 @@
 # V2 — Shared Weather Dashboard: Project Overview
 
-> Status: **in progress** — W0 (scaffold) and W3 (geocoding) are built on branch `claude/weather-dashboard-v2-plan-u0x6jl`; W1 is next. This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
+> Status: **in progress** — W0 (scaffold), W3 (geocoding), and **W1 (shared-engine extraction)** are built on branch `claude/weather-dashboard-v2-plan-u0x6jl`; **W2 (backend parameterization) is next.** This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
 
 ---
 
@@ -63,18 +63,18 @@ The central insight: **V1's data-fetching layer is already location-parameterize
                  └─────────────────────┘     persistence.ts
 ```
 
-**The shared-module extraction is the bulk of the effort and the highest-risk part** — not because it's hard, but because it touches V1's working code. The mitigation is sequencing (see `v2-plan.md`): extract, repoint V1's imports, and **verify V1 behaves identically before adding any V2 feature.**
+**The shared-module extraction is the bulk of the effort and the highest-risk part** — not because it's hard, but because it touches V1's working code. The mitigation is sequencing (see `v2-plan.md`): extract, repoint V1's imports, and **verify V1 behaves identically before adding any V2 feature.** ✅ **This extraction (W1) is now complete** — the whole `src/shared/` engine exists and V1 imports it, with V1 verified byte-for-byte unchanged.
 
 ### What's already reusable (little/no change)
-- `src/nws.ts` — fully lat/lon-parameterized. **Backbone is ready.**
-- `src/sun.ts`, `src/chart.ts` — pure, location-agnostic.
-- `SourceResult<T>` failure isolation, `cardFooter`/"last updated" stamping, EPA correction, red-flag divergence, sparkline — all cleanly separated in `src/render.ts` and `api/air-quality.ts`.
+- `src/shared/nws.ts` — fully lat/lon-parameterized. **Backbone is ready.**
+- `src/shared/sun.ts`, `src/shared/chart.ts` — pure, location-agnostic. *(Caveat: `chart.ts` still has a `home`/`office`-keyed elevation-label map; generalize for arbitrary locations later — see `v2-plan.md` Known gap.)*
+- `SourceResult<T>` failure isolation, `cardFooter`/"last updated" stamping, EPA correction, red-flag divergence, sparkline — now cleanly separated into `src/shared/cards.ts`, with `api/air-quality.ts` still owning the EPA correction server-side.
 
 ### What needs real refactoring
-- **Air quality** is *not* lat/lon-parameterized. `api/air-quality.ts` has a hardcoded `LOCATIONS = { home, office }` map; the frontend calls `?location=home|office`. Must accept raw `lat`/`lon`. The PA temperature is hardcoded to `locId === "home"` — V2 makes it a per-location flag.
-- **`api/brief.ts`** is hardcoded to home coordinates, a single fixed Blob cache name (`consensus-brief.json`), and a CO-only two-source prompt. Needs lat/lon params, **per-location cache keys**, and the **dual-mode prompt fork**.
-- **`src/render.ts`** hardcodes `locId === "home"` and the fixed 2-tab model. The pure card renderers extract cleanly to `src/shared/cards.ts`; the page shell/wiring stays per-page.
-- **`src/store.ts`** assumes exactly two fixed locations. V2 needs the same shape seeded from chosen locations + an `inColorado` flag per location.
+- **Air quality** is *not* lat/lon-parameterized. `api/air-quality.ts` has a hardcoded `LOCATIONS = { home, office }` map; the frontend calls `?location=home|office`. Must accept raw `lat`/`lon`. ✅ The PA-temperature hardcode is **already decoupled in the renderer** (W1): `renderConditions` takes a `showPaTemp` flag. The remaining work is the backend + fetch signature (W2). *(`src/shared/airQuality.ts` was relocated in W1 but still has its V1 signature.)*
+- **`api/brief.ts`** is hardcoded to home coordinates, a single fixed Blob cache name (`consensus-brief.json`), and a CO-only two-source prompt. Needs lat/lon params, **per-location cache keys** (W2), and the **dual-mode prompt fork** (W6). *(`src/shared/brief.ts` was relocated in W1 but still has its V1 signature.)*
+- ✅ **`src/render.ts`** — done (W1). The `locId === "home"` and fixed-2-tab hardcodes are decoupled: pure renderers live in `src/shared/cards.ts`; `render.ts` is now a thin V1 wrapper owning only the shell + the `renderAll` orchestrator.
+- ✅ **`src/store.ts`** — done (W1). Generalized into `createStore(locations)` in `src/shared/store.ts`; `src/store.ts` is a thin V1 wrapper seeding it with the two fixed locations. The shared page (W4) will seed it with chosen locations; the per-location `inColorado` flag rides on the picker/persistence data, not the store shape.
 
 ---
 

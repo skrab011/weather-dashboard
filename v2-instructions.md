@@ -9,6 +9,7 @@
 The personal page is installed on the owner's phone and is in daily use. V2 is **additive only.**
 
 - **V1 is the regression baseline.** After every shared-module extraction step, confirm the personal page (`index.html`) builds and behaves **byte-for-byte identically** to before. If a refactor changes V1 output, the refactor is wrong — fix it before proceeding.
+  - ✅ **W1 cleared this gate.** The whole engine was extracted to `src/shared/` with V1 verified unchanged. Because the rendered HTML is a pure function of state and the build env can't reach the live weather hosts, "byte-for-byte" was proven at the **source level**: a normalized diff of the old vs. new render/store/cards source showing **zero changes to any HTML template literal**, plus identical emitted bundles, plus an owner preview-vs-prod check. Reuse this technique for any future V1-touching refactor when the weather APIs are unreachable.
 - The personal page's data flow, layout, copy, and API calls must be **unchanged**. If a shared function needs new parameters, give them **defaults that reproduce V1's exact behavior** so the personal entry keeps working without edits where possible.
 - When backend functions (`api/air-quality.ts`, `api/brief.ts`) gain new params, the **no-param / `location=home|office` paths must keep working** exactly as today.
 
@@ -68,4 +69,4 @@ A workstream is complete only when:
 | Shared page, return visit | Previously chosen locations restored from localStorage. |
 | Both pages, mobile + desktop | Correct responsive layout. |
 
-**Deferred verification:** the build/CI environment blocks the geocoder hosts (`census.gov`, `nominatim.openstreetmap.org`), so live `/api/geocode` and location-picker testing cannot run during the build — verify these on the deployed Vercel preview or after merge. W0 and W3 are otherwise build-verified and pushed; see `v2-plan.md` → Build progress for live status.
+**Deferred verification:** the build/CI environment blocks both the geocoder hosts (`census.gov`, `nominatim.openstreetmap.org`) **and** the live weather hosts (NWS, PurpleAir, AirNow, CAIC), so anything needing a real network fetch — `/api/geocode`, the location picker, or a live V1/V2 render — must be verified on the deployed Vercel preview or after merge. For V1-regression specifically, use the source-level technique noted under the prime directive above (diff the rendered-HTML source) rather than waiting on a live render. W0, W3, and W1 are build-verified and pushed; see `v2-plan.md` → Build progress for live status.
