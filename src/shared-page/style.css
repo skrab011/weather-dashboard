@@ -3,15 +3,15 @@
    Keeps V1's style.css lean; any /shared-only rule belongs here.
    ========================================================================= */
 
-/* Lifted background palette — V2 is ~15 lightness-points brighter than V1.
-   All four surface tokens are shifted proportionally so the card hierarchy
-   (bg → surface → surface-raised → border) stays the same relative contrast. */
+/* V2 color palette — neutral-dark background with subtly cool-tinted surfaces.
+   bg is a pure neutral dark gray; surface tokens step up in lightness with a
+   barely-perceptible cool undertone so cards feel elevated without a blue cast. */
 :root {
-  --bg:            #292929;   /* was #0b0d11 */
-  --surface:       #303848;   /* was #13161d */
-  --surface-raised:#38435c;   /* was #1c2030 */
-  --border:        #424c65;   /* was #252a38 */
-  --accent-dim:    #3a2a62;   /* was #241c3a — keep purple tint, proportionally lifted */
+  --bg:            #292929;   /* neutral dark gray */
+  --surface:       #34363b;   /* cards — neutral-cool, clearly above bg */
+  --surface-raised:#3d4047;   /* hover / active tab background */
+  --border:        #46494f;   /* subtle dividers */
+  --accent-dim:    #3a2a62;   /* active tab purple tint — kept from V1 */
 }
 
 /* Header row holding the title and the Edit button side by side */
