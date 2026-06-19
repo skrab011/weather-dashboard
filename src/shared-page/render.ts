@@ -174,13 +174,18 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
     }, briefTitle);
 
     // Chart is always rendered for all locations. CAIC series is included only
-    // when inColorado — for non-CO, pointForecast.data is null (never fetched)
-    // so renderOverlayChart skips the CAIC series automatically.
+    // when the active location is in Colorado. We must pass a null result
+    // explicitly for non-CO — not state.caic.pointForecast — because CAIC data
+    // may already be in state from a CO location the user also has saved, and
+    // passing it would bleed that CO data into a non-CO chart.
     // Elevation label shown only when ≥ 5,000 ft (see chart.ts).
     const nwsElevFt = weather.gridpoint.data?.elevationM != null
       ? Math.round(weather.gridpoint.data.elevationM * 3.28084)
       : null;
-    renderChart(weather.hourly, state.caic.pointForecast, nwsElevFt);
+    const caicForChart = loc.inColorado
+      ? state.caic.pointForecast
+      : { data: null, error: null, lastUpdated: null, lastGoodData: null, lastGoodUpdated: null };
+    renderChart(weather.hourly, caicForChart, nwsElevFt);
 
     // CO-gated: CAIC weather summary and Tomer video only.
     // Clear their regions when non-CO so no skeleton/stale content lingers.
