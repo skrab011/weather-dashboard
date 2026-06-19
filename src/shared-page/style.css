@@ -5,13 +5,17 @@
 
 /* V2 color palette — neutral-dark background with subtly cool-tinted surfaces.
    bg is a pure neutral dark gray; surface tokens step up in lightness with a
-   barely-perceptible cool undertone so cards feel elevated without a blue cast. */
+   barely-perceptible cool undertone so cards feel elevated without a blue cast.
+   --muted is lighter than V1 (#6b7280 → #8a95a8) because the V2 surfaces are
+   brighter — the original value dropped to ~2:1 contrast on #34363b, making
+   small text like hourly times nearly unreadable. */
 :root {
   --bg:            #292929;   /* neutral dark gray */
   --surface:       #34363b;   /* cards — neutral-cool, clearly above bg */
   --surface-raised:#3d4047;   /* hover / active tab background */
   --border:        #46494f;   /* subtle dividers */
   --accent-dim:    #3a2a62;   /* active tab purple tint — kept from V1 */
+  --muted:         #8a95a8;   /* timestamps, placeholders — lifted for V2 surface contrast */
 }
 
 /* Header row holding the title and the Edit button side by side */
