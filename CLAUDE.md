@@ -160,6 +160,8 @@ A **second, separate page** (`shared.html` → `/shared`) for friends/family to 
 - ✅ **W7** — polish: service worker `weather-v3`, README updated, `shared.html` title, no separate manifest.
 - ✅ **W8** — QA matrix passed; merged to `main` 2026-06-19.
 - **Post-merge additions (all on `main`):** PA temp dynamic per sensor availability, overlay chart universal with elevation threshold, CAIC bleed fix, CSS split to `src/shared-page/style.css`, V1 7-day desktop layout fix (`align-items: start`).
+- **Sticky nav (both V1 and V2, 2026-06-19):** Header and Hourly/7-Day toggle wrapped in a `.sticky-nav` container so both stay pinned to the top on mobile as the user scrolls through the weather cards. On desktop (960px+) `.sticky-nav` reverts to `position: static` so everything scrolls with the page.
+- **V2 color palette (2026-06-19):** At a family member's request, V2's background was lightened. V2 now uses its own color palette defined in `src/shared-page/style.css` — a neutral dark gray bg (`#292929`) with neutral-cool surface tokens, distinct from V1's near-black blue-tinted palette. V1 colors are unchanged. V2 tokens: `--bg: #292929`, `--surface: #34363b`, `--surface-raised: #3d4047`, `--border: #46494f`, `--accent-dim: #3a2a62`.
 
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.

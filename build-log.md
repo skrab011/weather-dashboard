@@ -291,3 +291,19 @@ Previously `src/shared/chart.ts` had a `LOC_ELEV_FT` lookup table keyed by `"hom
 All V2-specific rules (picker UI, CO-gating overrides) were moved out of `src/style.css` into a new `src/shared-page/style.css`, imported only by `src/shared-main.ts`. V1 now loads ~2.9 kB less CSS (picker and gating rules are never in its bundle). The CO-gating rules in `src/shared-page/style.css` differ from the original plan: the chart is not CO-gated, so only `#caic-region` and `#tomer-region` are hidden; the top row stays 3-column for all locations.
 
 **Out-of-plan V1 fix (2026-06-19):** 7-day desktop layout — CAIC and Mountain Weather Update cards were stretching to the 7-Day card's height due to `align-items: stretch` on `.desktop-bottom-row`. Fixed to `align-items: start`. Shipped directly to `main` (pure V1 bug, independent of V2).
+
+**Feature: sticky nav on mobile (both V1 and V2, 2026-06-19).**
+The header and Hourly/7-Day toggle were previously two separate elements in the page flow. On mobile, the toggle scrolled off-screen as soon as the user scrolled past it — requiring a scroll back to the top to switch views. Fix: wrapped both `<header class="app-header">` and `<div class="view-toggle">` in a new `<div class="sticky-nav">` container. `.sticky-nav` is `position: sticky; top: 0; z-index: 10` on mobile so both stay pinned together. On desktop (960px+), `.sticky-nav` reverts to `position: static` (desktop cards are all visible at once so pinning wastes vertical space). Applied to both `src/render.ts` (V1) and `src/shared-page/render.ts` (V2).
+
+**Feature: V2 distinct color palette (2026-06-19).**
+At a family member's request, the V2 shared page was given a lighter, warmer background. V1's near-black blue-tinted palette (`--bg: #0b0d11`) was designed for the personal page and stayed unchanged. V2's `src/shared-page/style.css` overrides the `:root` CSS tokens with a neutral dark-gray palette:
+
+| Token | V1 value | V2 value |
+|---|---|---|
+| `--bg` | `#0b0d11` | `#292929` |
+| `--surface` | `#13161d` | `#34363b` |
+| `--surface-raised` | `#1c2030` | `#3d4047` |
+| `--border` | `#252a38` | `#46494f` |
+| `--accent-dim` | `#241c3a` | `#3a2a62` |
+
+The initial V2 bg tried was `#293040` (a blue-navy), but after iteration the final choice was `#292929` — a neutral dark gray. The surface tokens were then adjusted from their blue-tinted values to neutral-cool grays that maintain the same card-elevation hierarchy (each token steps up ~4–5 lightness points above the one below it). The `--accent-dim` purple for active tabs was kept and proportionally lifted. V1 loads none of these overrides — they are scoped to V2 via the CSS import in `src/shared-main.ts`.
