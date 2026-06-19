@@ -18,6 +18,14 @@
   --muted:         #8a95a8;   /* timestamps, placeholders — lifted for V2 surface contrast */
 }
 
+/* Hourly time labels ("11:00 AM" etc.) — match the Now card's data value style
+   so they're legible against V2's lighter card surface. */
+.hour-time {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+
 /* Header row holding the title and the Edit button side by side */
 .app-header__top {
   display: flex;
