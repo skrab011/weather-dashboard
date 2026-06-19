@@ -197,3 +197,97 @@ The GitHub personal access token used for pushing expires per session in the rem
 git remote set-url origin https://skrab011:YOUR_GITHUB_TOKEN@github.com/skrab011/weather-dashboard.git
 ```
 The token is stored separately (not in this repo). Generate a new one at github.com → Settings → Developer settings → Personal access tokens if the current one has expired.
+
+---
+
+## V2 — Shared Page Build (merged to `main` 2026-06-19)
+
+### Overview
+
+A second page at `/shared` that lets friends and family enter their own US locations. Built as a multi-page Vite app alongside V1 — same repo, same Vercel project, same `/api/` layer. The personal page (V1) was left completely unchanged.
+
+### W0 — Multi-page scaffold
+
+Added `vite.config.ts` with `rollupOptions.input` for both `index.html` (main) and `shared.html` (shared). Created a placeholder `src/shared-main.ts`. Verified that `npm run build` emits both `dist/index.html` and `dist/shared.html`. No V1 files touched.
+
+### W1 — Shared-module extraction (highest-risk step)
+
+Moved the reusable engine into `src/shared/` across four sub-steps, one commit each:
+1. Moved pure modules (`types.ts`, `nws.ts`, `sun.ts`, `chart.ts`, `caic.ts`, `tomer.ts`) and repointed V1 imports.
+2. Extracted pure card renderers from `src/render.ts` into `src/shared/cards.ts`. Two V1 hardcodes decoupled: `locId === "home"` for PA temp became a `showPaTemp: boolean` arg; the 2-tab assumption stayed in `render.ts`.
+3. Converted `src/store.ts` into a store factory (`createStore(locations)`) in `src/shared/store.ts`; a thin `src/store.ts` wrapper re-exports instance members so `main.ts` was untouched.
+4. Relocated `airQuality.ts` + `brief.ts` as-is (lat/lon and dual-mode refactors deferred to W2/W6).
+
+**V1 verification technique:** the build environment blocks live weather hosts, so V1 was proven unchanged via source-level normalized HTML-template diff (zero differences in any template literal), identical bundle output, and owner preview-vs-prod comparison. This is the reusable technique when live data is inaccessible.
+
+**Knock-on effect:** once `shared-main.ts` imported the shared engine in W4, Vite code-split the common modules into a `cards-*.js` chunk both pages load. V1 behavior is identical but bundle filenames changed — expected and not a regression.
+
+### W2 — Backend parameterization
+
+`api/air-quality.ts`: added `?lat=&lon=&temp=` path alongside unchanged `?location=home|office`. Runtime-overloaded frontend `fetchAirQuality`: string first arg → legacy path, number first arg → lat/lon path. All three V1 call sites emit byte-identical requests.
+
+`api/brief.ts`: added `?lat=&lon=&co=` path; per-location Blob cache key (`brief-{lat.toFixed(2)}_{lon.toFixed(2)}.json`). No-param path still uses `consensus-brief.json`. `fetchBrief` got an optional third arg; with no options, both V1 call sites reproduce their original URLs exactly.
+
+US bounding-box validation added to both endpoints (rejects non-US coords so owner's API keys can't be used as open relays).
+
+### W3 — Geocoding
+
+`api/geocode.ts`: US Census Geocoder primary (`onelineaddress?benchmark=Public_AR_Current`), OpenStreetMap Nominatim fallback (`countrycodes=us`). Decision to add Nominatim was made during this workstream — Census is address-grade and weak on bare city/ZIP input, which is what casual users type. Both sources US-restricted. Long CDN cache (results are stable). Self-contained per the `/api/` no-cross-import rule.
+
+`src/shared-page/geocode.ts`: frontend client calling `/api/geocode?q=...`; computes `inColorado` (`state === "CO"`, CO bounding-box fallback for edge cases).
+
+### W4 — Location picker + persistence
+
+- `src/shared-page/persistence.ts`: versioned localStorage key `weather-shared-locations-v1`; cap 2, corruption-tolerant, returns `[]` on any parse error.
+- `src/shared-page/picker.ts`: single screen for both onboarding (empty state) and manage (add/remove). Search → geocode → persist flow; US-only messaging for non-US results; de-dupe by rounded coords.
+- `src/shared-page/render.ts`: `renderSharedShell` builds tab bar from chosen locations + "Edit locations" button; `makeRenderAll(store, locations)` wires state into the shared card renderers.
+- `src/shared-main.ts` (rewritten): boot reads stored locations; if empty → picker; else seeds `createStore()` and runs V1-style NWS + air-quality fetches (lat/lon path) + zone-wide CAIC/Tomer + per-location brief that refetches on tab switch.
+
+No V1 source touched. `style.css` got an additive picker section (later split out — see post-merge CSS split).
+
+### W5 — Colorado gating
+
+`data-co` attribute set on `.content` by `makeRenderAll` based on `loc.inColorado`. CSS hides `#caic-region` and `#tomer-region` when `data-co="false"`. Desktop grid collapses the bottom row to full-width forecast when CO cards are absent (no layout holes).
+
+Chart rendered for all locations regardless of CO status (decided during this workstream as a feature improvement over the original plan, which had the chart CO-gated too).
+
+CAIC and Tomer fetches skipped entirely when no saved location is in CO (`anyInCO` flag in `shared-main.ts`).
+
+### W6 — Dual-mode brief
+
+`api/brief.ts`: `co=true` → NWS + CAIC consensus prompt (V1 behavior); `co=false` → NWS-only plain-language forecast prompt, CAIC fetch skipped. Both modes cached under per-location Blob key. Brief card title: "Consensus Brief" in CO, "Forecast Brief" elsewhere. Manual refresh passes `inColorado` so the correct prompt is used on re-fetch.
+
+### W7 — Polish, PWA, service worker, README
+
+Service worker bumped to `weather-v3`; `/shared` added to `PRECACHE` list. `shared.html` title set to "Weather". No separate PWA manifest for `/shared` — keeping it simple; users can bookmark or use the V1 install. README updated with a "Shared page (V2)" section.
+
+### W8 — QA matrix + merge
+
+Full verification matrix passed (personal page unchanged, CO locations, non-CO locations, non-US search, empty/return visit, mobile + desktop). Feature branch `claude/weather-dashboard-v2-plan-u0x6jl` fast-forward merged to `main`. 33 files changed in merge.
+
+---
+
+### Post-merge additions (all directly on `main`)
+
+**Bug: `/shared` returned 404 after merge.**
+Root cause: Vercel serves `dist/shared.html` at `/shared.html` by default; without `cleanUrls: true`, the clean URL `/shared` returns 404. Fix: added `"cleanUrls": true` to `vercel.json`. This also auto-redirects `/shared.html` → `/shared`. Discovery: this is a Vercel-specific behavior that differs from how `vite preview` serves files locally.
+
+**Bug: CAIC series bleeding into non-CO location charts.**
+When a user saves both a CO and a non-CO location, `fetchCAIC` runs (because `anyInCO === true`) and populates `state.caic.pointForecast` with real CO zone data. Switching to the non-CO tab, `renderChart` was still receiving that real CAIC data and drawing the series. Fix: in `src/shared-page/render.ts`, explicitly pass a null `SourceResult` for non-CO tabs:
+```typescript
+const caicForChart = loc.inColorado
+  ? state.caic.pointForecast
+  : { data: null, error: null, lastUpdated: null, lastGoodData: null, lastGoodUpdated: null };
+```
+Owner verified fix across multiple non-CO locations.
+
+**Feature: PA temperature dynamic on shared page.**
+Original implementation had `showTemp: false` hardcoded for all shared-page locations. Changed to `showTemp: true` — the API already handles this gracefully (returns `tempF: null` when no PurpleAir sensors are within 4 miles). The render layer checks `!!weather.airQuality.data?.tempF` and hides the PA temperature row when null. No UI change for users in sensor-dense areas; clean omission for users without nearby sensors.
+
+**Feature: NWS elevation from live gridpoint data.**
+Previously `src/shared/chart.ts` had a `LOC_ELEV_FT` lookup table keyed by `"home"` / `"office"`. Removed in favor of reading `properties.elevation` (in meters) from the live NWS gridpoint API response. Added `elevationM?: number` to `NWSGridpoint` in `src/shared/types.ts`; `fetchGridpoint` in `src/shared/nws.ts` extracts it. Chart renderers receive `nwsElevFt: number | null` and show the elevation label only when ≥ 5,000 ft (below that threshold the label reads "NWS Temperature"). Decision rationale: elevation is critical context in mountainous areas; irrelevant (and potentially confusing) at low altitude. Applies to both V1 and V2.
+
+**Feature: V2-specific CSS split to `src/shared-page/style.css`.**
+All V2-specific rules (picker UI, CO-gating overrides) were moved out of `src/style.css` into a new `src/shared-page/style.css`, imported only by `src/shared-main.ts`. V1 now loads ~2.9 kB less CSS (picker and gating rules are never in its bundle). The CO-gating rules in `src/shared-page/style.css` differ from the original plan: the chart is not CO-gated, so only `#caic-region` and `#tomer-region` are hidden; the top row stays 3-column for all locations.
+
+**Out-of-plan V1 fix (2026-06-19):** 7-day desktop layout — CAIC and Mountain Weather Update cards were stretching to the 7-Day card's height due to `align-items: stretch` on `.desktop-bottom-row`. Fixed to `align-items: start`. Shipped directly to `main` (pure V1 bug, independent of V2).

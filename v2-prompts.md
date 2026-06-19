@@ -2,23 +2,23 @@
 
 Copy-paste these into Claude Code **one at a time, in order.** Each maps to a workstream in `v2-plan.md`. Don't skip ahead — several prompts depend on the previous one being verified.
 
-> ⚠️ **FIRST THING IN EVERY V2 SESSION — set the branch.** A new Claude Code session may create its own branch based on `main` (which has V1 only — none of the V2 work). Before pasting any prompt below, send this so the session builds on the existing V2 branch that already contains W0 + W3:
+> ✅ **V2 IS COMPLETE AND MERGED TO `main`.** The feature branch `claude/weather-dashboard-v2-plan-u0x6jl` was merged on 2026-06-19. All W0–W8 workstreams are done. Both V1 (`/`) and V2 (`/shared`) are live in production.
+>
+> **For future sessions doing new feature work**, work directly on `main` (or create a new named feature branch if the change is large or risky). The old branch name is retired. At the start of any session that needs a push, set the remote token first:
 >
 > ```
-> Work on branch claude/weather-dashboard-v2-plan-u0x6jl for everything in this session.
-> First run: git fetch origin && git checkout claude/weather-dashboard-v2-plan-u0x6jl
-> Then confirm shared.html, src/shared-main.ts, vite.config.ts, and api/geocode.ts are all
-> present before doing anything else. Do not base work on main or create a new branch.
+> git remote set-url origin https://skrab011:TOKEN@github.com/skrab011/weather-dashboard.git
+> git pull origin main
 > ```
 >
-> Skipping this is the single most common way to get a session stuck (it can't find W0's files and W1 can't reach its "both pages import the shared engine" done-state).
+> Then confirm `shared.html`, `src/shared-main.ts`, `src/shared-page/`, and `api/geocode.ts` are all present before making any changes.
 
 **How to use:**
 - Run one prompt, let it finish, **verify in a browser**, commit, then run the next.
 - Every prompt assumes the working rules in `v2-instructions.md` (V1 stays green; feature branch, not `main`; ask before ambiguous architectural changes).
 - If a prompt's verification step fails, paste the failure back rather than moving on.
 
-**Progress (as of 2026-06-19):** ✅ **W0** (Prompt 1), ✅ **W3** (Prompt 4), ✅ **W1** (Prompt 2), ✅ **W2** (Prompt 3), and ✅ **W4** (Prompt 5) are complete and pushed to the feature branch. **Resume at Prompt 6 (W5)** — Prompts 1–5 are all done, so skip them. Notes: W3 shipped with a **Census + Nominatim fallback** geocoder (not Census-only); W1 relocated `airQuality.ts` + `brief.ts` into `src/shared/` **as-is**; W2 then gave both serverless functions `?lat=&lon=` paths (US-bbox-validated, per-location brief cache keys) and added back-compat overloads to their frontend fetch modules so all three V1 call sites are unchanged; W4 added the shared-page picker + localStorage persistence and a real boot that runs the V1-style flow for the chosen locations (still un-gated — CAIC/Tomer/chart show for every location until W5). Live testing of the geocoder + the new endpoint params + any V2 render is deferred until the branch merges.
+**Status (as of 2026-06-19): ALL PROMPTS COMPLETE.** ✅ W0 (1), ✅ W1 (2), ✅ W2 (3), ✅ W3 (4), ✅ W4 (5), ✅ W5 (6), ✅ W6 (7), ✅ W7 (8), ✅ W8 (9). V2 is merged to `main` and live at `/shared`. The prompts below are archived for reference — the build is done. Post-merge additions (PA temp dynamic, universal chart, elevation threshold, CAIC bleed fix, CSS split) were implemented directly on `main` without a separate prompt.
 
 ---
 

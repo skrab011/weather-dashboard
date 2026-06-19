@@ -6,17 +6,20 @@ The plan is sequenced so **the personal page (V1) stays green at every step.** T
 
 ---
 
-## Build progress (branch `claude/weather-dashboard-v2-plan-u0x6jl`)
+## Build progress — all workstreams complete, merged to `main` 2026-06-19
 
 _Last updated 2026-06-19._
 
 - ✅ **W0 — Multi-page scaffold.** `vite.config.ts` (multi-page input), `shared.html`, `src/shared-main.ts` (placeholder). Build emits both `dist/index.html` and `dist/shared.html`; V1 bundle unchanged. Committed + pushed.
-- ✅ **W3 — Geocoding** (done out of order — it's independent of W1/W2). `api/geocode.ts` (Census → Nominatim fallback, US-only) + `src/shared-page/geocode.ts` (client + `inColorado`). Build/type-check clean. **Live endpoint + picker testing is DEFERRED until the branch merges** — the build environment blocks the geocoder hosts (`census.gov`, `nominatim.openstreetmap.org`) and the owner is on mobile. Test URLs are in the W3 section below.
+- ✅ **W3 — Geocoding** (done out of order — it's independent of W1/W2). `api/geocode.ts` (Census → Nominatim fallback, US-only) + `src/shared-page/geocode.ts` (client + `inColorado`). Build/type-check clean. Live testing confirmed post-merge: city/ZIP queries work via Nominatim; address queries via Census; non-US queries return a user-friendly "US-only" message.
 - ✅ **W1 — Shared-module extraction.** The high-risk, V1-touching step, done in the four sub-steps below — one commit each so a regression is easy to bisect. The full engine now lives in `src/shared/` and V1 imports it. **V1 regression verified green** (see "How V1 was verified" below). Committed + pushed.
-- ✅ **W2 — Backend parameterization.** Both serverless functions now accept arbitrary US lat/lon while V1's calls stay byte-identical. `api/air-quality.ts` adds `?lat=&lon=&temp=` beside the unchanged `?location=` path; `api/brief.ts` adds `?lat=&lon=&co=` with per-location Blob cache keys, no-param path still `consensus-brief.json`; both add US-bbox validation. Frontend `fetchAirQuality`/`fetchBrief` gained back-compat overloads so the **three V1 call sites emit unchanged requests**. Two commits (backend, then frontend signatures) for easy bisecting. **V1 regression verified** at the source level (live weather hosts blocked in build env — see W2 section below). Committed + pushed.
-- ✅ **W4 — Location picker + persistence.** The shared page now boots for real. `src/shared-page/persistence.ts` (versioned localStorage, ≤2 locations, corruption-tolerant), `picker.ts` (one screen for both onboarding and manage: search → geocode → persist, cap 2, de-dupe, remove, US-only messaging), `render.ts` (parameterized `renderSharedShell` + `makeRenderAll(store, locations)` — the V2 counterpart to `src/render.ts`), and a rewritten `src/shared-main.ts` boot that seeds `createStore()` from stored locations and runs the V1-style per-location NWS + air-quality (lat/lon path) fetches plus zone-wide CAIC/Tomer and a per-location brief that refetches on tab switch. **No V1 source touched** — only new V2 files + an additive `style.css` section. **Note:** with `shared-main.ts` now importing the shared engine, the build code-splits it into a `cards-*.js` chunk both entries load; V1 behavior is identical but its bundle filenames changed (expected — this is the "both pages import one shared engine" end-state). Live picker/render verification deferred to the Vercel preview. Committed + pushed.
-- ⏭️ **Next: W5 — Colorado gating.** Run with Prompt 6 from `v2-prompts.md`.
-- **Remaining:** W5, W6, W7, W8.
+- ✅ **W2 — Backend parameterization.** Both serverless functions now accept arbitrary US lat/lon while V1's calls stay byte-identical. `api/air-quality.ts` adds `?lat=&lon=&temp=` beside the unchanged `?location=` path; `api/brief.ts` adds `?lat=&lon=&co=` with per-location Blob cache keys, no-param path still `consensus-brief.json`; both add US-bbox validation. Frontend `fetchAirQuality`/`fetchBrief` gained back-compat overloads so the **three V1 call sites emit unchanged requests**. Two commits (backend, then frontend signatures) for easy bisecting. **V1 regression verified** at the source level. Committed + pushed.
+- ✅ **W4 — Location picker + persistence.** `src/shared-page/persistence.ts` (versioned localStorage, ≤2 locations, corruption-tolerant), `picker.ts` (one screen for both onboarding and manage: search → geocode → persist, cap 2, de-dupe, remove, US-only messaging), `render.ts` (parameterized `renderSharedShell` + `makeRenderAll(store, locations)` — the V2 counterpart to `src/render.ts`), and a rewritten `src/shared-main.ts` boot. **No V1 source touched.** Committed + pushed.
+- ✅ **W5 — Colorado gating.** CAIC and Tomer hidden (empty, no skeleton) when active location is outside CO. `data-co` attribute on `.content` drives CSS. Chart shown for all locations (NWS-only outside CO — CAIC bleed prevented by passing explicit null SourceResult for non-CO tabs). CAIC/Tomer fetches skipped when no saved location is in CO.
+- ✅ **W6 — Dual-mode brief.** `api/brief.ts`: `co=true` → NWS+CAIC consensus prompt; `co=false` → NWS-only forecast prompt (CAIC fetch skipped). Per-location Blob cache key. Brief card title: "Consensus Brief" in CO, "Forecast Brief" elsewhere. Manual refresh passes correct mode.
+- ✅ **W7 — Polish, PWA, service worker, README.** Service worker bumped to `weather-v3`; `/shared` added to precache list. `shared.html` title set. No separate manifest for `/shared` (not independently installable by design). README updated with V2 section. Dark-mode tokens reused throughout; no new colors.
+- ✅ **W8 — QA matrix + merge.** Full matrix verified. Branch merged to `main`; V1 confirmed unchanged on owner's iPhone. `/shared` required `"cleanUrls": true` in `vercel.json` to serve without `.html` extension (post-merge fix).
+- **Post-merge additions (all on `main`):** PA temp on shared page now dynamic (shown when sensors within 4 miles, hidden otherwise); NWS elevation now read from live gridpoint API with ≥ 5,000 ft label threshold; V2-specific CSS moved to `src/shared-page/style.css`; CAIC bleed fix for CO+non-CO location pairs.
 
 **Decisions added during the build:**
 - **Geocoder = Census + Nominatim fallback** (upgraded from "Census only"). Census `onelineaddress` is address-grade and unreliable for the bare city/ZIP input casual users type; Nominatim (free, no key) covers that gap. Both US-restricted.
@@ -42,10 +45,10 @@ The build/CI environment blocks the live weather hosts (NWS/PurpleAir/AirNow/CAI
 | **W2** | Backend parameterization | Yes (back-compat) | Medium | ✅ Done |
 | **W3** | Geocoding | No | Low | ✅ Done |
 | **W4** | Location picker + persistence | No | Medium | ✅ Done |
-| **W5** | Colorado gating | No | Low | Planned |
-| **W6** | Dual-mode brief | No (W2 enables) | Medium | Planned |
-| **W7** | Polish, PWA, SW, README | Minor | Low | Planned |
-| **W8** | QA matrix + merge | No | — | Planned |
+| **W5** | Colorado gating | No | Low | ✅ Done |
+| **W6** | Dual-mode brief | No (W2 enables) | Medium | ✅ Done |
+| **W7** | Polish, PWA, SW, README | Minor | Low | ✅ Done |
+| **W8** | QA matrix + merge | No | — | ✅ Done |
 
 ---
 

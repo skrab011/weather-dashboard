@@ -44,7 +44,7 @@ Priority order for tradeoffs:
 - **Hosting:** Vercel free (Hobby) tier — static frontend + serverless functions
 - **Caching:** Vercel Blob (`@vercel/blob`) for the consensus brief JSON. CDN `s-maxage` headers on all `/api/` responses
 - **Scheduling:** No cron (requires Vercel Pro). Consensus brief regenerates on the CDN cache TTL (10 min) — next page load after expiry triggers a fresh AI call
-- **Service worker:** Cache version `weather-v2`. Skips all `/api/` routes so serverless functions are never intercepted
+- **Service worker:** Cache version `weather-v3`. Precaches `/`, `/shared`, `/manifest.json`, `/icons/icon-192.png`. Skips all `/api/` routes so serverless functions are never intercepted
 - **Failure isolation:** Every data source is wrapped in `SourceResult<T>`. Cards render independently; one source failing never affects others. CAIC is the most fragile — last-good data is preserved and shown with a stale timestamp
 
 ## Data sources & rules
@@ -124,38 +124,42 @@ The CAIC looper (`looper.avalanche.state.co.us`) encodes Mountain local time as 
 3. **Vercel Blob token expiry** — if `BLOB_READ_WRITE_TOKEN` lapses, brief still generates but isn't cached; every page load after CDN expiry triggers a fresh AI call (cost impact). Check Vercel dashboard if brief card feels slow on every load.
 4. **YouTube API quota** — 10,000 units/day free quota. Ample for personal use; only a concern if the key is ever leaked.
 
-## V2 — Shared page (in progress)
+## V2 — Shared page (complete and deployed)
 
-A **second, separate page** (`shared.html` → `/shared`) for friends/family to enter their own US locations. **Purely additive — must never destabilize V1.** The personal page stays exactly as built. Planning docs:
+A **second, separate page** (`shared.html` → `/shared`) for friends/family to enter their own US locations. Live at `https://weather-dashboard-five-umber.vercel.app/shared`. Planning docs:
 
 - `v2-overview.md` — what V2 is, architecture (two pages / one shared engine), locked decisions.
 - `v2-instructions.md` — working rules for the V2 build (V1 regression rule, git workflow, constraints).
-- `v2-plan.md` — step-by-step workstreams (W0–W8).
-- `v2-prompts.md` — copy-paste build prompts, one per workstream.
+- `v2-plan.md` — step-by-step workstreams (W0–W8), all complete.
+- `v2-prompts.md` — copy-paste build prompts used during the build (now archived — V2 is on `main`).
 
 **Locked decisions (owner Q&A 2026-06-18):**
 1. Same repo, **same Vercel project** — multi-page Vite build (`index.html` + `shared.html`), one `/api/` layer, one set of env vars.
 2. Sharing scale: a few friends/family → per-location caching is sufficient, **no hard location cap** needed.
 3. Consensus Brief: **on-demand, cached per location**; dual-mode — "Consensus Brief" (NWS+CAIC) in CO, "Forecast Brief" (NWS-only) elsewhere.
 4. **US-only** — NWS is US-only; the picker restricts to US locations.
-5. **Geocoder (decided during W3)** — US Census Geocoder primary, **OpenStreetMap Nominatim fallback**. Census is address-grade but weak on bare city/ZIP queries (what casual users type); Nominatim (free, no key) covers that gap. Both US-restricted.
+5. **Geocoder** — US Census Geocoder primary, **OpenStreetMap Nominatim fallback**. Census is address-grade but weak on bare city/ZIP queries (what casual users type); Nominatim (free, no key) covers that gap. Both US-restricted.
 
-**Key facts for the build:**
-- `src/nws.ts` is already lat/lon-parameterized (backbone ready). The big effort is **extracting the shared engine into `src/shared/`** and keeping V1 byte-identical.
-- `api/air-quality.ts` (hardcoded home/office map) and `api/brief.ts` (hardcoded home coords, single blob, CO-only prompt) need lat/lon params + back-compat defaults.
-- Colorado gating = an `inColorado` boolean (geocoder `state === "CO"`) that **hides, not errors**, CAIC + Tomer + overlay chart outside CO.
+**As-built key decisions (post-merge):**
+- Feature branch `claude/weather-dashboard-v2-plan-u0x6jl` merged to `main` on 2026-06-19 after owner verified V1 unchanged. `/shared` required `"cleanUrls": true` in `vercel.json` — without it, Vercel serves `dist/shared.html` only at `/shared.html`, not the clean `/shared` URL.
+- **PA temperature on shared page:** dynamically shown when PurpleAir sensors exist within 4 miles (`showTemp: true` → API returns `tempF: null` when no sensors → UI hides the row). V1 continues to show PA temp for home only.
+- **Overlay chart universal:** shown for ALL locations on the shared page. Outside CO, only the NWS series is drawn; CAIC data is explicitly replaced with a null `SourceResult` to prevent bleed from a CO-tab into a non-CO tab. Elevation label shown in chart legend only when ≥ 5,000 ft (label omitted below threshold — elevation matters less at low altitude). NWS elevation now read from the live gridpoint API (`properties.elevation` in meters) rather than a hardcoded table — this applies to both V1 and V2.
+- **Colorado gating on shared page:** CAIC Weather Summary and Tomer video are hidden (empty, no skeleton) when the active location is outside CO. Chart and all NWS cards always shown. `data-co` attribute on `.content` drives CSS visibility. CAIC/Tomer fetches are skipped entirely when no saved location is in CO.
+- **CSS split:** V2-specific styles (picker UI, CO-gating overrides) moved to `src/shared-page/style.css`, imported only by `src/shared-main.ts`. V1's `style.css` is ~2.9 kB leaner.
+- **Service worker:** `weather-v3`; precaches `/`, `/shared`, `/manifest.json`, `/icons/icon-192.png`. Shared page has no separate PWA manifest — not independently installable (by design, to keep it simple).
+- **Per-location brief cache keys:** `brief-{lat.toFixed(2)}_{lon.toFixed(2)}.json` in Vercel Blob.
 
-**V2 git note:** build on a feature branch, not `main` (`main` auto-deploys prod V1). Merge to `main` only after V1 regression is verified green and owner approves.
-
-**Build progress (branch `claude/weather-dashboard-v2-plan-u0x6jl`):**
-- ✅ **W0** — multi-page scaffold (`vite.config.ts`, `shared.html`, `src/shared-main.ts` placeholder). Build emits both pages; V1 bundle unchanged.
-- ✅ **W3** — geocoding (`api/geocode.ts` Census+Nominatim, US-only; `src/shared-page/geocode.ts` client + `inColorado`). Done out of order (independent of W1/W2). **Live endpoint + picker testing deferred until the branch merges** — the build env blocks the geocoder hosts and the owner is on mobile.
-- ✅ **W1** — shared-module extraction. The whole engine now lives in `src/shared/` (types, nws, sun, chart, caic, tomer, airQuality, brief, store factory, cards) and V1 imports it. `Location` type moved to `shared/types.ts`; store is `createStore(locations)` + a thin `src/store.ts` wrapper; `render.ts` stayed top-level as a thin shell + orchestrator. `airQuality.ts`/`brief.ts` were relocated as-is (their lat/lon + dual-mode refactors are W2/W6). **V1 verified byte-for-byte unchanged** via source-level HTML-template diff (live weather hosts are blocked in the build env). Known gap: `chart.ts` elevation label still home/office-keyed.
-- ✅ **W2** — backend parameterization. `api/air-quality.ts` accepts `?lat=&lon=&temp=` alongside the unchanged `?location=home|office` V1 path; `api/brief.ts` accepts `?lat=&lon=&co=` with per-location Blob cache keys (`brief-{lat}_{lon}.json`), no-param path still writes `consensus-brief.json`. Both add US bounding-box validation. Frontend `fetchAirQuality`/`fetchBrief` got back-compat overloads — all three V1 call sites emit byte-identical requests. **V1 verified** via the three unchanged call sites + green build + logically-identical no-param backend branches (live weather hosts blocked in build env). **Live endpoint testing deferred until the branch merges.**
-- ✅ **W4** — shared-page location picker + persistence. `src/shared-page/persistence.ts` (versioned localStorage, ≤2 locations, corruption-tolerant), `picker.ts` (onboarding + manage screen: search → geocode → persist, cap 2, remove, US-only messaging), `render.ts` (parameterized shell + `makeRenderAll(store, locations)` — the V2 counterpart to `src/render.ts`), and a rewritten `src/shared-main.ts` boot that seeds `createStore()` from stored locations and runs the V1-style NWS + air-quality fetches (lat/lon path) plus zone-wide CAIC/Tomer and a per-location brief. No V1 source touched; `style.css` got an additive picker section. **Note:** now that `shared-main.ts` imports the shared engine, the build code-splits it into a `cards-*.js` chunk both pages load — V1 behavior identical, bundle filenames differ. Live picker/render testing deferred to the Vercel preview.
-- ⏭️ **Next: W5** (Colorado gating) — Prompt 6 from `v2-prompts.md`.
-- Remaining: W5–W8. See `v2-plan.md` for the live status table.
-- **Out-of-plan V1 fix (2026-06-19):** corrected the 7-day desktop layout so CAIC + Mountain Weather Update cards size to their own content (was `align-items: stretch`). Shipped **directly to `main`** and merged into the V2 branch.
+**Build progress — all workstreams complete and merged to `main`:**
+- ✅ **W0** — multi-page scaffold (`vite.config.ts`, `shared.html`, `src/shared-main.ts` placeholder).
+- ✅ **W1** — shared-module extraction (`src/shared/`); V1 verified byte-for-byte unchanged via source-level diff.
+- ✅ **W2** — backend parameterization (`api/air-quality.ts` + `api/brief.ts` accept `?lat=&lon=`; V1 paths unchanged).
+- ✅ **W3** — geocoding (`api/geocode.ts` Census+Nominatim, US-only; `src/shared-page/geocode.ts`).
+- ✅ **W4** — location picker + persistence (`src/shared-page/persistence.ts`, `picker.ts`, `render.ts`, boot in `shared-main.ts`).
+- ✅ **W5** — Colorado gating (CAIC/Tomer hidden outside CO; chart shown for all locations).
+- ✅ **W6** — dual-mode brief ("Consensus Brief" in CO, "Forecast Brief" elsewhere; per-location Blob cache).
+- ✅ **W7** — polish: service worker `weather-v3`, README updated, `shared.html` title, no separate manifest.
+- ✅ **W8** — QA matrix passed; merged to `main` 2026-06-19.
+- **Post-merge additions (all on `main`):** PA temp dynamic per sensor availability, overlay chart universal with elevation threshold, CAIC bleed fix, CSS split to `src/shared-page/style.css`, V1 7-day desktop layout fix (`align-items: start`).
 
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
