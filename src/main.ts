@@ -13,10 +13,10 @@
 import "./style.css";
 import { LOCATIONS } from "./locations";
 import { fetchPoints, fetchAllForLocation } from "./shared/nws";
-import { fetchAirQuality } from "./airQuality";
+import { fetchAirQuality } from "./shared/airQuality";
 import { fetchCAIC } from "./shared/caic";
 import { fetchTomer } from "./shared/tomer";
-import { fetchBrief } from "./brief";
+import { fetchBrief } from "./shared/brief";
 import { calcSunTimes } from "./shared/sun";
 import { state, subscribe, updateLocationWeather, updateCAIC, updateTomer, updateBrief } from "./store";
 import { renderShell, renderAll } from "./render";

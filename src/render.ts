@@ -14,7 +14,7 @@
 
 import { LOCATIONS } from "./locations";
 import { state, setActiveLocation, setActiveView, updateBrief } from "./store";
-import { fetchBrief } from "./brief";
+import { fetchBrief } from "./shared/brief";
 import {
   skeletonCard,
   renderAlerts,

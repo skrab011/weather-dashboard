@@ -5,7 +5,7 @@
 // or AirNow directly. The proxy handles key security and all corrections.
 // ---------------------------------------------------------------------------
 
-import type { LocationAirQuality, SourceResult } from "./shared/types";
+import type { LocationAirQuality, SourceResult } from "./types";
 
 // Wrap a fetch in a SourceResult, preserving last-good data on failure.
 // Same pattern used in nws.ts — each source fails independently.
