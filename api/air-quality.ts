@@ -2,11 +2,15 @@
 // Serverless proxy for PurpleAir + AirNow.
 //
 // This is the ONLY file that ever sees PURPLEAIR_API_KEY and AIRNOW_API_KEY.
-// The browser calls /api/air-quality?location=home (or office) and receives
-// fully processed data — no raw keys, no raw sensor values.
+// The browser calls /api/air-quality and receives fully processed data —
+// no raw keys, no raw sensor values.
 //
-// Query params:
-//   location  "home" | "office"
+// Query params (two mutually exclusive forms):
+//   location  "home" | "office"   — V1 path; uses hardcoded coord map
+//   lat, lon                      — V2 path; raw coordinates (US only)
+//   temp      true | false        — whether to include PA temperature;
+//                                   location= path keeps existing home/office logic;
+//                                   lat/lon path defaults to false
 //
 // Both external calls run in parallel. If one fails, the other's result is
 // still returned — partial data is better than nothing.
@@ -28,6 +32,17 @@ const LOCATIONS: Record<string, { lat: number; lon: number }> = {
   home:   { lat: 39.619625, lon: -106.090422 },
   office: { lat: 39.576179, lon: -106.09718  },
 };
+
+// ---------------------------------------------------------------------------
+// US continental bounding box — rough but sufficient to block non-US coords.
+// Excludes Alaska/Hawaii intentionally (NWS coverage differs there).
+// ---------------------------------------------------------------------------
+const US_LAT_MIN = 24.0, US_LAT_MAX = 49.5;
+const US_LON_MIN = -125.0, US_LON_MAX = -66.0;
+
+function isInUSBbox(lat: number, lon: number): boolean {
+  return lat >= US_LAT_MIN && lat <= US_LAT_MAX && lon >= US_LON_MIN && lon <= US_LON_MAX;
+}
 
 // ---------------------------------------------------------------------------
 // Bounding box for a 4-mile radius at Summit County latitudes (~39.6°N).
@@ -149,18 +164,41 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8
 // Main handler
 // ---------------------------------------------------------------------------
 export default async function handler(req: Req, res: Res): Promise<void> {
-  const locationId = String(req.query.location ?? "home");
-  const coords = LOCATIONS[locationId];
+  const locationParam = req.query.location ? String(req.query.location) : null;
+  const latParam  = req.query.lat  ? parseFloat(String(req.query.lat))  : null;
+  const lonParam  = req.query.lon  ? parseFloat(String(req.query.lon))  : null;
 
-  if (!coords) {
-    res.status(400).json({ error: "Unknown location" });
-    return;
+  let lat: number, lon: number, showTemp: boolean;
+
+  if (locationParam !== null) {
+    // V1 path — ?location=home|office; byte-identical to existing behavior
+    const coords = LOCATIONS[locationParam];
+    if (!coords) {
+      res.status(400).json({ error: "Unknown location" });
+      return;
+    }
+    lat = coords.lat;
+    lon = coords.lon;
+    showTemp = locationParam === "home";
+  } else if (latParam !== null && lonParam !== null) {
+    // V2 path — ?lat=&lon=
+    if (isNaN(latParam) || isNaN(lonParam) || !isInUSBbox(latParam, lonParam)) {
+      res.status(400).json({ error: "Coordinates must be valid numbers within the US bounding box" });
+      return;
+    }
+    lat = latParam;
+    lon = lonParam;
+    const tempParam = req.query.temp ? String(req.query.temp) : "false";
+    showTemp = tempParam !== "false";
+  } else {
+    // No params — default to home (back-compat)
+    lat = LOCATIONS.home.lat;
+    lon = LOCATIONS.home.lon;
+    showTemp = true;
   }
 
   const purpleAirKey = process.env.PURPLEAIR_API_KEY ?? "";
   const airnowKey    = process.env.AIRNOW_API_KEY ?? "";
-
-  const { lat, lon } = coords;
 
   // Run both external API calls in parallel — neither waits on the other
   const [paResult, anResult] = await Promise.allSettled([
@@ -177,8 +215,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
   if (paResult.status === "fulfilled") {
     ({ pm25, trend, tempF, sensorCount } = paResult.value);
-    // Only return PA temperature for the home location (spec requirement)
-    if (locationId !== "home") tempF = null;
+    if (!showTemp) tempF = null;
   } else {
     purpleAirError = String(paResult.reason);
   }

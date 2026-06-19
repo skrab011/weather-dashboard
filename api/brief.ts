@@ -23,6 +23,7 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const NWS_BASE      = "https://api.weather.gov";
 const CAIC_PROXY    = "https://avalanche.state.co.us/api-proxy/caic_data_api";
 const LOOPER_BASE   = "https://looper.avalanche.state.co.us";
+// V1 personal-page defaults — unchanged
 const BRIEF_LAT     =  39.619625;
 const BRIEF_LON     = -106.090422;
 const NWS_UA        = "weather-dashboard/1.0 (jskraba0601@gmail.com)";
@@ -30,16 +31,33 @@ const CAIC_HEADERS  = { "User-Agent": "Mozilla/5.0 (compatible; weather-dashboar
 const BLOB_NAME     = "consensus-brief.json";
 
 // ---------------------------------------------------------------------------
+// US bounding box — blocks non-US coordinates on the new lat/lon path.
+// ---------------------------------------------------------------------------
+const US_LAT_MIN = 24.0, US_LAT_MAX = 49.5;
+const US_LON_MIN = -125.0, US_LON_MAX = -66.0;
+
+function isInUSBbox(lat: number, lon: number): boolean {
+  return lat >= US_LAT_MIN && lat <= US_LAT_MAX && lon >= US_LON_MIN && lon <= US_LON_MAX;
+}
+
+// Per-location blob key — round to 2 decimal places (~1 km) to maximise cache hits.
+function locationBlobName(lat: number, lon: number): string {
+  return `brief-${lat.toFixed(2)}_${lon.toFixed(2)}.json`;
+}
+
+// ---------------------------------------------------------------------------
 // Blob helpers — gracefully skip if BLOB_READ_WRITE_TOKEN is not set
 // ---------------------------------------------------------------------------
 export interface BriefResult { text: string; generatedAt: string }
 
-async function readCached(): Promise<BriefResult | null> {
+async function readCached(blobName: string): Promise<BriefResult | null> {
   try {
     const token = process.env.BLOB_READ_WRITE_TOKEN;
     if (!token) return null;
     const { list } = await import("@vercel/blob");
-    const { blobs } = await list({ prefix: "consensus-brief", token });
+    // Strip .json suffix to use as prefix for the list query
+    const prefix = blobName.replace(/\.json$/, "");
+    const { blobs } = await list({ prefix, token });
     if (blobs.length === 0) return null;
     const r = await fetch(blobs[0].url);
     if (!r.ok) return null;
@@ -47,20 +65,20 @@ async function readCached(): Promise<BriefResult | null> {
   } catch { return null; }
 }
 
-async function writeCached(result: BriefResult): Promise<void> {
+async function writeCached(blobName: string, result: BriefResult): Promise<void> {
   try {
     const token = process.env.BLOB_READ_WRITE_TOKEN;
     if (!token) return;
     const { put } = await import("@vercel/blob");
-    await put(BLOB_NAME, JSON.stringify(result), { access: "public", addRandomSuffix: false, contentType: "application/json", token });
+    await put(blobName, JSON.stringify(result), { access: "public", addRandomSuffix: false, contentType: "application/json", token });
   } catch { /* non-fatal */ }
 }
 
 // ---------------------------------------------------------------------------
 // NWS data fetch
 // ---------------------------------------------------------------------------
-async function fetchNWS(): Promise<{ alerts: string; hourly: string; sevenDay: string }> {
-  const pr = await fetch(`${NWS_BASE}/points/${BRIEF_LAT},${BRIEF_LON}`, { headers: { "User-Agent": NWS_UA }, signal: AbortSignal.timeout(8_000) });
+async function fetchNWS(lat: number, lon: number): Promise<{ alerts: string; hourly: string; sevenDay: string }> {
+  const pr = await fetch(`${NWS_BASE}/points/${lat},${lon}`, { headers: { "User-Agent": NWS_UA }, signal: AbortSignal.timeout(8_000) });
   if (!pr.ok) throw new Error(`NWS /points ${pr.status}`);
   const pj = await pr.json() as { properties: { forecastHourly: string; forecast: string; county: string } };
   const { forecastHourly, forecast, county } = pj.properties;
@@ -132,13 +150,13 @@ function extractArray(text: string, from: number): string | null {
   return null;
 }
 
-async function fetchCAIC(): Promise<{ summary: string; pointForecast: string }> {
+async function fetchCAIC(lat: number, lon: number): Promise<{ summary: string; pointForecast: string }> {
   const uri = encodeURIComponent("/api/v2/zone_weather_forecasts/statewide/current");
   const offsetMs = looperOffsetMs();
   const today = new Date(Date.now() - offsetMs).toISOString().slice(0, 10);
   const [sr, lr] = await Promise.all([
     fetch(`${CAIC_PROXY}?_api_proxy_uri=${uri}`, { headers: CAIC_HEADERS, signal: AbortSignal.timeout(8_000) }),
-    fetch(`${LOOPER_BASE}/iptfcst/ptfcst.php?idate=${today}&res=4&lat=${BRIEF_LAT}&lon=${BRIEF_LON}`, { headers: CAIC_HEADERS, signal: AbortSignal.timeout(8_000) }),
+    fetch(`${LOOPER_BASE}/iptfcst/ptfcst.php?idate=${today}&res=4&lat=${lat}&lon=${lon}`, { headers: CAIC_HEADERS, signal: AbortSignal.timeout(8_000) }),
   ]);
 
   let summary = "Unavailable";
@@ -176,16 +194,22 @@ async function fetchCAIC(): Promise<{ summary: string; pointForecast: string }> 
 // ---------------------------------------------------------------------------
 // Generate brief via Claude Haiku
 // ---------------------------------------------------------------------------
-async function generateBrief(): Promise<BriefResult> {
+async function generateBrief(lat: number, lon: number, inColorado: boolean): Promise<BriefResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
 
-  const [nws, caic] = await Promise.all([
-    fetchNWS().catch(() => ({ alerts: "Unavailable", hourly: "Unavailable", sevenDay: "Unavailable" })),
-    fetchCAIC().catch(() => ({ summary: "Unavailable", pointForecast: "Unavailable" })),
-  ]);
+  const nwsPromise = fetchNWS(lat, lon).catch(() => ({ alerts: "Unavailable", hourly: "Unavailable", sevenDay: "Unavailable" }));
+  // Only fetch CAIC when the location is in Colorado
+  const caicPromise = inColorado
+    ? fetchCAIC(lat, lon).catch(() => ({ summary: "Unavailable", pointForecast: "Unavailable" }))
+    : Promise.resolve(null);
 
-  const prompt = `You are a concise weather forecaster for Summit County, Colorado (elevation ~9,000–9,200 ft).
+  const [nws, caic] = await Promise.all([nwsPromise, caicPromise]);
+
+  // NOTE: The full dual-mode prompt fork (CO vs NWS-only) is implemented in W6.
+  // For now, build the prompt from whatever data is available.
+  const prompt = caic
+    ? `You are a concise weather forecaster for Summit County, Colorado (elevation ~9,000–9,200 ft).
 
 Summarize the forecasts below in 3–5 plain-language sentences. Focus on where NWS and CAIC agree, and note any meaningful differences. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
 
@@ -202,7 +226,19 @@ CAIC WEATHER SUMMARY:
 ${caic.summary}
 
 CAIC POINT FORECAST (next 48h at ~9,219 ft):
-${caic.pointForecast}`;
+${caic.pointForecast}`
+    : `You are a concise weather forecaster.
+
+Summarize the NWS forecast below in 3–5 plain-language sentences. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
+
+NWS ACTIVE ALERTS:
+${nws.alerts}
+
+NWS HOURLY FORECAST (next 48h):
+${nws.hourly}
+
+NWS 7-DAY FORECAST:
+${nws.sevenDay}`;
 
   const aiRes = await fetch(ANTHROPIC_API, {
     method: "POST",
@@ -228,17 +264,32 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
   const wantsRefresh = req.query?.["refresh"] === "true";
 
+  // Parse location params — no params = V1 personal-page path (home coords, consensus-brief.json)
+  const latParam = req.query?.lat ? parseFloat(String(req.query.lat)) : null;
+  const lonParam = req.query?.lon ? parseFloat(String(req.query.lon)) : null;
+  const hasCoords = latParam !== null && lonParam !== null && !isNaN(latParam) && !isNaN(lonParam);
+
+  if (hasCoords && !isInUSBbox(latParam!, lonParam!)) {
+    res.status(400).json({ error: "Coordinates must be valid numbers within the US bounding box" });
+    return;
+  }
+
+  const lat         = hasCoords ? latParam!  : BRIEF_LAT;
+  const lon         = hasCoords ? lonParam!  : BRIEF_LON;
+  const inColorado  = hasCoords ? (String(req.query?.co ?? "true") !== "false") : true;
+  const blobName    = hasCoords ? locationBlobName(lat, lon) : BLOB_NAME;
+
   try {
     if (!wantsRefresh) {
-      const cached = await readCached();
+      const cached = await readCached(blobName);
       if (cached) { res.status(200).json({ ...cached, error: null }); return; }
     }
-    const result = await generateBrief();
-    await writeCached(result);
+    const result = await generateBrief(lat, lon, inColorado);
+    await writeCached(blobName, result);
     res.status(200).json({ ...result, error: null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    const stale = await readCached();
+    const stale = await readCached(blobName);
     if (stale) { res.status(200).json({ ...stale, error: msg }); return; }
     res.status(200).json({ text: null, generatedAt: null, error: msg });
   }
