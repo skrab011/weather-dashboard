@@ -2,6 +2,17 @@
 
 Copy-paste these into Claude Code **one at a time, in order.** Each maps to a workstream in `v2-plan.md`. Don't skip ahead — several prompts depend on the previous one being verified.
 
+> ⚠️ **FIRST THING IN EVERY V2 SESSION — set the branch.** A new Claude Code session may create its own branch based on `main` (which has V1 only — none of the V2 work). Before pasting any prompt below, send this so the session builds on the existing V2 branch that already contains W0 + W3:
+>
+> ```
+> Work on branch claude/weather-dashboard-v2-plan-u0x6jl for everything in this session.
+> First run: git fetch origin && git checkout claude/weather-dashboard-v2-plan-u0x6jl
+> Then confirm shared.html, src/shared-main.ts, vite.config.ts, and api/geocode.ts are all
+> present before doing anything else. Do not base work on main or create a new branch.
+> ```
+>
+> Skipping this is the single most common way to get a session stuck (it can't find W0's files and W1 can't reach its "both pages import the shared engine" done-state).
+
 **How to use:**
 - Run one prompt, let it finish, **verify in a browser**, commit, then run the next.
 - Every prompt assumes the working rules in `v2-instructions.md` (V1 stays green; feature branch, not `main`; ask before ambiguous architectural changes).
