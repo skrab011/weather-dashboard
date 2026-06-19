@@ -305,5 +305,9 @@ At a family member's request, the V2 shared page was given a lighter, warmer bac
 | `--surface-raised` | `#1c2030` | `#3d4047` |
 | `--border` | `#252a38` | `#46494f` |
 | `--accent-dim` | `#241c3a` | `#3a2a62` |
+| `--muted` | `#6b7280` | `#8a95a8` |
 
 The initial V2 bg tried was `#293040` (a blue-navy), but after iteration the final choice was `#292929` — a neutral dark gray. The surface tokens were then adjusted from their blue-tinted values to neutral-cool grays that maintain the same card-elevation hierarchy (each token steps up ~4–5 lightness points above the one below it). The `--accent-dim` purple for active tabs was kept and proportionally lifted. V1 loads none of these overrides — they are scoped to V2 via the CSS import in `src/shared-main.ts`.
+
+**Bug: hourly time labels unreadable after surface color change.**
+After the surface tokens were updated, the hourly strip time labels ("11:00 AM", "12:00 PM", etc.) and card footer timestamps became very hard to read. Root cause: these elements use `--muted: #6b7280`, which has only ~2:1 contrast against the new `--surface: #34363b` — far below the minimum needed for small (0.75rem) text. The V1 surface (`#13161d`) is dark enough that the same value achieves ~3.4:1; V2's lighter surface exposed the problem. Fix: added `--muted: #8a95a8` to V2's `:root` override in `src/shared-page/style.css`. The new value achieves ~3.7:1 contrast on V2's surface while staying visibly dimmer than `--fg-secondary` (`#9aa3b2`) so the text hierarchy is preserved.
