@@ -34,14 +34,7 @@ Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryS
 
 import type { CAICPointForecastRow, NWSPeriod } from "./types";
 
-// Approximate elevation of the NWS forecast point for each location.
-// NWS forecasts are tied to the specific lat/lon grid cell, not a mountain summit.
-const LOC_ELEV_FT: Record<string, number> = {
-  home:   9_035, // Silverthorne, CO
-  office: 9_097, // Frisco, CO
-};
-
-// CAIC's point-forecast grid cell sits at a higher elevation than the town sites.
+// CAIC's point-forecast grid cell sits at a higher elevation than town sites.
 const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
 
 // Design-system colours — must match style.css custom properties.
@@ -65,14 +58,17 @@ function fmtHour(iso: string): string {
 //
 // placeholder  The #caic-chart-placeholder div to render into.
 // nwsHourly    Hourly NWS periods (or null while loading / on error).
-// caicForecast CAIC point-forecast rows (null until WS6 Phase 2).
-// locId        Active location id — "home" or "office" — for elevation label.
+// caicForecast CAIC point-forecast rows (null for non-CO locations).
+// nwsElevFt    NWS forecast-point elevation in feet, or null if unknown.
+//              Elevation label is shown only when ≥ 5,000 ft — below that
+//              elevation varies little over short distances so the label adds
+//              noise rather than context.
 // ---------------------------------------------------------------------------
 export function renderOverlayChart(
   placeholder: HTMLElement,
   nwsHourly: NWSPeriod[] | null,
   caicForecast: CAICPointForecastRow[] | null,
-  locId: string,
+  nwsElevFt: number | null,
 ): void {
   // Nothing to draw yet — NWS data still loading
   if (!nwsHourly || nwsHourly.length === 0) {
@@ -112,12 +108,16 @@ export function renderOverlayChart(
   placeholder.innerHTML = `<canvas class="overlay-chart-canvas" aria-label="Temperature forecast comparison chart"></canvas>`;
   const canvas = placeholder.querySelector<HTMLCanvasElement>("canvas")!;
 
-  const nwsElev = LOC_ELEV_FT[locId] ?? 9_000;
-  const elev    = (ft: number) => `${ft.toLocaleString()} ft`;
+  const elev = (ft: number) => `${ft.toLocaleString()} ft`;
+  // Show elevation in the label only when ≥ 5,000 ft — elevation matters more
+  // at high altitude where small differences produce meaningful temperature gaps.
+  const nwsLabel = nwsElevFt !== null && nwsElevFt >= 5_000
+    ? `NWS (${elev(nwsElevFt)})`
+    : "NWS Temperature";
 
   const datasets: Chart["data"]["datasets"] = [
     {
-      label:           `NWS (${elev(nwsElev)})`,
+      label:           nwsLabel,
       data:            nwsTemps,
       borderColor:     COLOR_NWS,
       backgroundColor: "rgba(179,157,219,0.07)",

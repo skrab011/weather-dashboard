@@ -149,8 +149,9 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
       btn.classList.toggle("toggle-btn--active", btn.dataset.view === state.activeView);
     });
 
-    // The shared page does not show the home-only hyperlocal PurpleAir temp.
-    const showPaTemp = false;
+    // Show PA temperature only when sensors exist near the chosen location and
+    // returned a reading. tempF is null when no sensors are within 4 miles.
+    const showPaTemp = !!weather.airQuality.data?.tempF;
 
     renderAlerts(weather.alerts);
     renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes, weather.airQuality, showPaTemp);
@@ -172,18 +173,23 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
       store.updateBrief(updated);
     }, briefTitle);
 
-    // CO-gated: overlay chart, CAIC weather summary, Tomer video.
-    // When not in CO, clear the regions so no skeleton/stale content lingers
-    // (CSS display:none via data-co also hides them, but clearing is defensive).
+    // Chart is always rendered for all locations. CAIC series is included only
+    // when inColorado — for non-CO, pointForecast.data is null (never fetched)
+    // so renderOverlayChart skips the CAIC series automatically.
+    // Elevation label shown only when ≥ 5,000 ft (see chart.ts).
+    const nwsElevFt = weather.gridpoint.data?.elevationM != null
+      ? Math.round(weather.gridpoint.data.elevationM * 3.28084)
+      : null;
+    renderChart(weather.hourly, state.caic.pointForecast, nwsElevFt);
+
+    // CO-gated: CAIC weather summary and Tomer video only.
+    // Clear their regions when non-CO so no skeleton/stale content lingers.
     if (loc.inColorado) {
-      renderChart(weather.hourly, state.caic.pointForecast, loc.id);
       renderCAIC(state.caic.summary);
       renderTomer(state.tomer);
     } else {
-      const chartEl = document.getElementById("chart-region");
       const caicEl  = document.getElementById("caic-region");
       const tomerEl = document.getElementById("tomer-region");
-      if (chartEl) chartEl.innerHTML = "";
       if (caicEl)  caicEl.innerHTML  = "";
       if (tomerEl) tomerEl.innerHTML = "";
     }

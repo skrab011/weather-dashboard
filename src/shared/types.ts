@@ -62,6 +62,7 @@ export interface NWSGridpoint {
     uom: string;                   // dimensionless
     values: NWSTimeSeriesValue[];
   };
+  elevationM?: number;             // metres above sea level — present in most gridpoint responses
 }
 
 // A single active weather alert.

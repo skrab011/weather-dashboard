@@ -15,6 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import "./style.css";
+import "./shared-page/style.css";
 import { fetchPoints, fetchAllForLocation } from "./shared/nws";
 import { fetchAirQuality } from "./shared/airQuality";
 import { fetchCAIC } from "./shared/caic";
@@ -98,8 +99,8 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
         const meta = await fetchPoints(loc.lat, loc.lon);
         return fetchAllForLocation(loc, meta, store.state.weather[loc.id]);
       })(),
-      // Shared page uses the lat/lon air-quality path; no home-only PA temp.
-      fetchAirQuality(loc.lat, loc.lon, { showTemp: false }, store.state.weather[loc.id].airQuality),
+      // Show PA temp when sensors exist within 4 miles; API returns tempF: null otherwise.
+      fetchAirQuality(loc.lat, loc.lon, { showTemp: true }, store.state.weather[loc.id].airQuality),
     ]);
 
     if (nwsOutcome.status === "fulfilled") {

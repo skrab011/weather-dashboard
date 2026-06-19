@@ -111,6 +111,7 @@ export async function fetchGridpoint(gridpointUrl: string): Promise<NWSGridpoint
     // Fall back to empty values arrays if the field is absent (summer off-season)
     snowfallAmount: p.snowfallAmount ?? { uom: "wmoUnit:m", values: [] },
     uVIndex: p.uVIndex ?? { uom: "1", values: [] },
+    elevationM: typeof p.elevation?.value === "number" ? p.elevation.value : undefined,
   };
 }
 

@@ -544,7 +544,7 @@ export function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
 export function renderChart(
   hourlyResult: SourceResult<NWSPeriod[]>,
   pointForecastResult: SourceResult<CAICPointForecastRow[]>,
-  locId: string,
+  nwsElevFt: number | null,
 ): void {
   const el = document.getElementById("chart-region")!;
   const nwsHourly = hourlyResult.data ?? hourlyResult.lastGoodData;
@@ -579,7 +579,7 @@ export function renderChart(
   `;
 
   const placeholder = document.getElementById("caic-chart-placeholder")!;
-  renderOverlayChart(placeholder, nwsHourly!, caicFcst, locId);
+  renderOverlayChart(placeholder, nwsHourly!, caicFcst, nwsElevFt);
 }
 
 // ---------------------------------------------------------------------------

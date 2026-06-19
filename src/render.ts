@@ -127,7 +127,10 @@ export function renderAll(): void {
   renderAirQuality(weather.airQuality);
   renderHourly(weather.hourly);
   renderForecast(weather.forecast);
-  renderChart(weather.hourly, state.caic.pointForecast, loc.id);
+  const nwsElevFt = weather.gridpoint.data?.elevationM != null
+    ? Math.round(weather.gridpoint.data.elevationM * 3.28084)
+    : null;
+  renderChart(weather.hourly, state.caic.pointForecast, nwsElevFt);
 
   // The brief's manual-refresh button refetches and pushes the result into state.
   // Capture the current brief result so the refresh uses the same value the
