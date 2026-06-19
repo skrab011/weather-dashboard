@@ -76,10 +76,13 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
   store.subscribe(renderAll);
   renderAll();
 
-  // Zone-wide CAIC + Tomer are Colorado-statewide; fetch once. (W5 will gate
-  // these so they're skipped/hidden when no chosen location is in Colorado.)
-  fetchCAIC(store.state.caic).then(store.updateCAIC).catch(() => {});
-  fetchTomer(store.state.tomer).then(store.updateTomer).catch(() => {});
+  // Zone-wide CAIC + Tomer: skip entirely when no chosen location is in Colorado.
+  // W5 gating — avoids pointless calls for fully non-CO users.
+  const anyInCO = runtimeLocations.some((l) => l.inColorado);
+  if (anyInCO) {
+    fetchCAIC(store.state.caic).then(store.updateCAIC).catch(() => {});
+    fetchTomer(store.state.tomer).then(store.updateTomer).catch(() => {});
+  }
 
   // Brief for the initially-active location.
   fetchBriefForActive(store, runtimeLocations);

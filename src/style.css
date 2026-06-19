@@ -938,3 +938,36 @@ body {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ========================================================================== */
+/* Shared page (V2) — Colorado gating (W5)                                    */
+/* CO-gated regions (chart, CAIC, Tomer) are hidden when the active location  */
+/* is outside Colorado. data-co="false" is set on .content by the render      */
+/* layer; CSS handles the visibility and grid collapse everywhere.             */
+/* ========================================================================== */
+
+/* Hide CO-gated containers on all screen sizes */
+.content[data-co="false"] #chart-region,
+.content[data-co="false"] #caic-region,
+.content[data-co="false"] #tomer-region {
+  display: none;
+}
+
+@media (min-width: 960px) {
+  /* Non-CO top row: 2 equal columns (conditions+AQ | brief; chart absent) */
+  .content[data-co="false"] .desktop-top-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Non-CO bottom row (hourly view): forecast spans the full width */
+  .content[data-view="hourly"][data-co="false"] .desktop-bottom-row {
+    grid-template-columns: 1fr;
+    grid-template-areas: "forecast";
+  }
+
+  /* Non-CO bottom row (7-day view): forecast spans the full width */
+  .content[data-view="7day"][data-co="false"] .desktop-bottom-row {
+    grid-template-columns: 1fr;
+    grid-template-areas: "forecast";
+  }
+}

@@ -139,7 +139,11 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
 
     // Sync toggle styling and the data-view attribute that drives CSS visibility
     const main = document.querySelector<HTMLElement>(".content");
-    if (main) main.setAttribute("data-view", state.activeView);
+    if (main) {
+      main.setAttribute("data-view", state.activeView);
+      // data-co drives CSS to collapse/restore the CO-gated card regions
+      main.setAttribute("data-co", String(loc.inColorado));
+    }
 
     document.querySelectorAll<HTMLButtonElement>(".toggle-btn").forEach((btn) => {
       btn.classList.toggle("toggle-btn--active", btn.dataset.view === state.activeView);
@@ -153,7 +157,6 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
     renderAirQuality(weather.airQuality);
     renderHourly(weather.hourly);
     renderForecast(weather.forecast);
-    renderChart(weather.hourly, state.caic.pointForecast, loc.id);
 
     // Brief refresh refetches for the ACTIVE location (per-location cache key +
     // mode plumbing from W2). Capture the current brief result so the refresh
@@ -168,7 +171,20 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
       store.updateBrief(updated);
     });
 
-    renderCAIC(state.caic.summary);
-    renderTomer(state.tomer);
+    // CO-gated: overlay chart, CAIC weather summary, Tomer video.
+    // When not in CO, clear the regions so no skeleton/stale content lingers
+    // (CSS display:none via data-co also hides them, but clearing is defensive).
+    if (loc.inColorado) {
+      renderChart(weather.hourly, state.caic.pointForecast, loc.id);
+      renderCAIC(state.caic.summary);
+      renderTomer(state.tomer);
+    } else {
+      const chartEl = document.getElementById("chart-region");
+      const caicEl  = document.getElementById("caic-region");
+      const tomerEl = document.getElementById("tomer-region");
+      if (chartEl) chartEl.innerHTML = "";
+      if (caicEl)  caicEl.innerHTML  = "";
+      if (tomerEl) tomerEl.innerHTML = "";
+    }
   };
 }
