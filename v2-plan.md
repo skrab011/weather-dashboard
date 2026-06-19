@@ -13,8 +13,9 @@ _Last updated 2026-06-19._
 - ✅ **W0 — Multi-page scaffold.** `vite.config.ts` (multi-page input), `shared.html`, `src/shared-main.ts` (placeholder). Build emits both `dist/index.html` and `dist/shared.html`; V1 bundle unchanged. Committed + pushed.
 - ✅ **W3 — Geocoding** (done out of order — it's independent of W1/W2). `api/geocode.ts` (Census → Nominatim fallback, US-only) + `src/shared-page/geocode.ts` (client + `inColorado`). Build/type-check clean. **Live endpoint + picker testing is DEFERRED until the branch merges** — the build environment blocks the geocoder hosts (`census.gov`, `nominatim.openstreetmap.org`) and the owner is on mobile. Test URLs are in the W3 section below.
 - ✅ **W1 — Shared-module extraction.** The high-risk, V1-touching step, done in the four sub-steps below — one commit each so a regression is easy to bisect. The full engine now lives in `src/shared/` and V1 imports it. **V1 regression verified green** (see "How V1 was verified" below). Committed + pushed.
-- ⏭️ **Next: W2 — Backend parameterization.** Run with Prompt 3 from `v2-prompts.md`.
-- **Remaining:** W2, W4, W5, W6, W7, W8.
+- ✅ **W2 — Backend parameterization.** Both serverless functions now accept arbitrary US lat/lon while V1's calls stay byte-identical. `api/air-quality.ts` adds `?lat=&lon=&temp=` beside the unchanged `?location=` path; `api/brief.ts` adds `?lat=&lon=&co=` with per-location Blob cache keys, no-param path still `consensus-brief.json`; both add US-bbox validation. Frontend `fetchAirQuality`/`fetchBrief` gained back-compat overloads so the **three V1 call sites emit unchanged requests**. Two commits (backend, then frontend signatures) for easy bisecting. **V1 regression verified** at the source level (live weather hosts blocked in build env — see W2 section below). Committed + pushed.
+- ⏭️ **Next: W4 — Location picker + persistence.** Run with Prompt 5 from `v2-prompts.md`. (W3 is already done.)
+- **Remaining:** W4, W5, W6, W7, W8.
 
 **Decisions added during the build:**
 - **Geocoder = Census + Nominatim fallback** (upgraded from "Census only"). Census `onelineaddress` is address-grade and unreliable for the bare city/ZIP input casual users type; Nominatim (free, no key) covers that gap. Both US-restricted.
@@ -37,7 +38,7 @@ The build/CI environment blocks the live weather hosts (NWS/PurpleAir/AirNow/CAI
 |---|---|---|---|---|
 | **W0** | Multi-page scaffold | No (additive) | Low | ✅ Done |
 | **W1** | Shared-module extraction | **Yes** (repoints imports) | **High** | ✅ Done |
-| **W2** | Backend parameterization | Yes (back-compat) | Medium | Planned |
+| **W2** | Backend parameterization | Yes (back-compat) | Medium | ✅ Done |
 | **W3** | Geocoding | No | Low | ✅ Done |
 | **W4** | Location picker + persistence | No | Medium | Planned |
 | **W5** | Colorado gating | No | Low | Planned |
@@ -115,9 +116,13 @@ src/shared/
 
 ---
 
-## W2 — Backend parameterization
+## W2 — Backend parameterization ✅ Done
+
+> **Built 2026-06-19.** Shipped in two commits (backend functions, then frontend fetch signatures) so the V1-touching frontend half is easy to bisect. Implemented as the plan specified below; deviations are flagged inline with **[as built]**. The full dual-mode brief *prompt* fork is intentionally still deferred to W6 — W2 only wired the param plumbing, the CAIC skip on `co=false`, and the per-location cache keys.
 
 **Goal:** make the serverless functions accept arbitrary US lat/lon while keeping V1's existing calls working unchanged.
+
+**[as built] How V1 was verified (no live render):** same constraint as W1 — the build env can't reach NWS/PurpleAir/AirNow/CAIC, so V1 was confirmed at the source level by three facts: (a) the three V1 frontend call sites (`fetchAirQuality(locId, prev)` and both `fetchBrief` calls) are textually unchanged, so they emit the same HTTP requests; (b) `tsc --noEmit` + `vite build` are green; (c) the `?location=` branch in `api/air-quality.ts` and the no-param branch in `api/brief.ts` are logically identical to before — the new code is added as `if` branches *above* them, never editing the V1 path. Live endpoint testing on the deployed preview is deferred until the branch merges.
 
 ### `api/air-quality.ts`
 1. Accept `?lat=&lon=` in addition to the existing `?location=home|office`. If `location` is present, use the existing hardcoded map (V1 path, unchanged). If `lat`/`lon` are present, use those.
@@ -137,7 +142,9 @@ src/shared/
 > - `src/render.ts` → `fetchBrief(brief, true)` (the refresh-button closure relocated here in W1; sends `?refresh=true`).
 
 - `airQuality.ts`: change the fetch signature from `(locationId: "home" | "office")` to `(lat, lon, { temp })`; build the query string accordingly. **Prefer keeping the `location=` shortcut for the personal entry** so V1's request stays byte-identical — i.e. accept either the legacy `("home"|"office")` form or `(lat, lon, opts)`, and leave `main.ts`'s call alone (or give it a back-compat default that still sends `?location=home|office`). Coords is cleaner long-term but `location=` is the safest V1 path.
+  - **[as built]** Implemented as a runtime-overloaded function: `fetchAirQuality(locationIdOrLat, prevOrLon, optsOrPrev?, maybePrev?)`. If the first arg is a **string** it takes the legacy `("home"|"office", prev)` path and sends `?location=…` (V1, untouched in `main.ts`). If it's a **number** it takes the `(lat, lon, { showTemp }, prev)` path and sends `?lat=&lon=&temp=`. (The opts key is `showTemp`, matching the backend's `temp` flag.)
 - `brief.ts`: add `(lat, lon, { inColorado })` params; **default (no args) reproduces V1** at *both* call sites above (initial load + refresh).
+  - **[as built]** Implemented as an optional third arg: `fetchBrief(prev, refresh = false, options?: { lat, lon, inColorado })`. With **no `options`**, the URL is exactly `/api/brief` or `/api/brief?refresh=true` — byte-identical to both V1 call sites. With `options`, it sends `?lat=&lon=&co=` (plus `&refresh=true` on refresh), which the backend maps to the per-location blob key.
 
 **V1 check:** personal page air-quality and brief cards identical; personal brief still reads/writes `consensus-brief.json`; the two `fetchBrief` call sites and the one `fetchAirQuality` call site emit unchanged requests.
 

@@ -18,7 +18,7 @@ Copy-paste these into Claude Code **one at a time, in order.** Each maps to a wo
 - Every prompt assumes the working rules in `v2-instructions.md` (V1 stays green; feature branch, not `main`; ask before ambiguous architectural changes).
 - If a prompt's verification step fails, paste the failure back rather than moving on.
 
-**Progress (as of 2026-06-19):** ✅ **W0** (Prompt 1), ✅ **W3** (Prompt 4), and ✅ **W1** (Prompt 2) are complete and pushed to the feature branch. **Resume at Prompt 3 (W2)**, then **skip Prompt 4** (W3 done) and continue at Prompt 5 (W4). Notes: W3 shipped with a **Census + Nominatim fallback** geocoder (not Census-only); W1 relocated `airQuality.ts` + `brief.ts` into `src/shared/` **as-is** (their signature refactors are W2/W6), and decoupled the renderer PA-temp hardcode. Live testing of the geocoder + any V2 render is deferred until the branch merges.
+**Progress (as of 2026-06-19):** ✅ **W0** (Prompt 1), ✅ **W3** (Prompt 4), ✅ **W1** (Prompt 2), and ✅ **W2** (Prompt 3) are complete and pushed to the feature branch. **Resume at Prompt 5 (W4)** — Prompts 2, 3, and 4 are all done, so skip them. Notes: W3 shipped with a **Census + Nominatim fallback** geocoder (not Census-only); W1 relocated `airQuality.ts` + `brief.ts` into `src/shared/` **as-is**; W2 then gave both serverless functions `?lat=&lon=` paths (US-bbox-validated, per-location brief cache keys) and added back-compat overloads to their frontend fetch modules so all three V1 call sites are unchanged. Live testing of the geocoder + the new endpoint params + any V2 render is deferred until the branch merges.
 
 ---
 
@@ -75,7 +75,7 @@ their own commit so they're easy to bisect. Do not merge to main.
 
 ---
 
-## Prompt 3 — W2: Backend parameterization
+## Prompt 3 — W2: Backend parameterization ✅ (already complete — skip)
 
 ```
 Implement Workstream W2 from v2-plan.md (backend parameterization), keeping all V1 call paths

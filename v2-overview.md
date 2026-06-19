@@ -1,6 +1,6 @@
 # V2 — Shared Weather Dashboard: Project Overview
 
-> Status: **in progress** — W0 (scaffold), W3 (geocoding), and **W1 (shared-engine extraction)** are built on branch `claude/weather-dashboard-v2-plan-u0x6jl`; **W2 (backend parameterization) is next.** This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
+> Status: **in progress** — W0 (scaffold), W3 (geocoding), W1 (shared-engine extraction), and **W2 (backend parameterization)** are built on branch `claude/weather-dashboard-v2-plan-u0x6jl`; **W4 (location picker + persistence) is next.** This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
 
 ---
 
@@ -71,8 +71,8 @@ The central insight: **V1's data-fetching layer is already location-parameterize
 - `SourceResult<T>` failure isolation, `cardFooter`/"last updated" stamping, EPA correction, red-flag divergence, sparkline — now cleanly separated into `src/shared/cards.ts`, with `api/air-quality.ts` still owning the EPA correction server-side.
 
 ### What needs real refactoring
-- **Air quality** is *not* lat/lon-parameterized. `api/air-quality.ts` has a hardcoded `LOCATIONS = { home, office }` map; the frontend calls `?location=home|office`. Must accept raw `lat`/`lon`. ✅ The PA-temperature hardcode is **already decoupled in the renderer** (W1): `renderConditions` takes a `showPaTemp` flag. The remaining work is the backend + fetch signature (W2). *(`src/shared/airQuality.ts` was relocated in W1 but still has its V1 signature.)*
-- **`api/brief.ts`** is hardcoded to home coordinates, a single fixed Blob cache name (`consensus-brief.json`), and a CO-only two-source prompt. Needs lat/lon params, **per-location cache keys** (W2), and the **dual-mode prompt fork** (W6). *(`src/shared/brief.ts` was relocated in W1 but still has its V1 signature.)*
+- ✅ **Air quality** — done (W2). `api/air-quality.ts` now accepts raw `?lat=&lon=&temp=` alongside the unchanged `?location=home|office` V1 path, with US-bbox validation. `src/shared/airQuality.ts` gained a back-compat overload (string form → `?location=`; numeric `lat,lon` form → `?lat=&lon=&temp=`), so V1's call site is untouched. The PA-temperature hardcode was already decoupled in the renderer in W1 (`renderConditions` takes a `showPaTemp` flag).
+- ✅ **`api/brief.ts`** — partially done (W2). It now accepts `?lat=&lon=&co=` with **per-location Blob cache keys** (`brief-39.62_-106.09.json`); the no-param V1 path still uses `consensus-brief.json`. `src/shared/brief.ts` got an optional `{ lat, lon, inColorado }` arg whose absence reproduces V1 exactly at both call sites. The **dual-mode prompt fork** (CO consensus vs. NWS-only forecast wording) is still **deferred to W6** — W2 wired the plumbing, the CAIC skip on `co=false`, and the cache keys only.
 - ✅ **`src/render.ts`** — done (W1). The `locId === "home"` and fixed-2-tab hardcodes are decoupled: pure renderers live in `src/shared/cards.ts`; `render.ts` is now a thin V1 wrapper owning only the shell + the `renderAll` orchestrator.
 - ✅ **`src/store.ts`** — done (W1). Generalized into `createStore(locations)` in `src/shared/store.ts`; `src/store.ts` is a thin V1 wrapper seeding it with the two fixed locations. The shared page (W4) will seed it with chosen locations; the per-location `inColorado` flag rides on the picker/persistence data, not the store shape.
 
