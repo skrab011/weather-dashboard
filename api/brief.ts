@@ -206,10 +206,10 @@ async function generateBrief(lat: number, lon: number, inColorado: boolean): Pro
 
   const [nws, caic] = await Promise.all([nwsPromise, caicPromise]);
 
-  // NOTE: The full dual-mode prompt fork (CO vs NWS-only) is implemented in W6.
-  // For now, build the prompt from whatever data is available.
+  // co=true  → NWS + CAIC consensus brief (Colorado mountain locations)
+  // co=false → NWS-only forecast brief (non-Colorado locations)
   const prompt = caic
-    ? `You are a concise weather forecaster for Summit County, Colorado (elevation ~9,000–9,200 ft).
+    ? `You are a concise weather forecaster for a Colorado mountain location.
 
 Summarize the forecasts below in 3–5 plain-language sentences. Focus on where NWS and CAIC agree, and note any meaningful differences. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
 
@@ -225,7 +225,7 @@ ${nws.sevenDay}
 CAIC WEATHER SUMMARY:
 ${caic.summary}
 
-CAIC POINT FORECAST (next 48h at ~9,219 ft):
+CAIC POINT FORECAST (next 48h):
 ${caic.pointForecast}`
     : `You are a concise weather forecaster.
 

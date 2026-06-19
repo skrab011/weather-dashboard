@@ -589,9 +589,12 @@ export function renderChart(
 // supplied by the caller via `onRefresh` so this renderer stays pure; the
 // button is disabled while a refresh is in flight to prevent double-clicks.
 // ---------------------------------------------------------------------------
+// title defaults to "Consensus Brief" (V1 behavior); the shared page passes
+// "Forecast Brief" for non-Colorado locations.
 export function renderBrief(
   result: SourceResult<ConsensusBrief>,
   onRefresh: () => Promise<void>,
+  title = "Consensus Brief",
 ): void {
   const el = document.getElementById("brief-region")!;
 
@@ -603,7 +606,7 @@ export function renderBrief(
   if (result.error && !result.lastGoodData) {
     el.innerHTML = `
       <section class="card card--error">
-        <h2 class="card-title">Consensus Brief</h2>
+        <h2 class="card-title">${title}</h2>
         <p class="card-empty">Could not load brief.</p>
         ${cardFooter(null, result.error)}
       </section>`;
@@ -620,11 +623,11 @@ export function renderBrief(
 
   el.innerHTML = `
     <section class="card${isStale ? " card--error" : ""}">
-      <h2 class="card-title">Consensus Brief</h2>
+      <h2 class="card-title">${title}</h2>
       <div class="brief-body">${d.text}</div>
       <div class="brief-footer">
         ${genTime ? `<span class="brief-generated">Generated ${genTime}</span>` : ""}
-        <button class="brief-refresh-btn" aria-label="Refresh consensus brief">↻ Refresh</button>
+        <button class="brief-refresh-btn" aria-label="Refresh ${title.toLowerCase()}">↻ Refresh</button>
       </div>
       ${cardFooter(ts, result.error)}
     </section>

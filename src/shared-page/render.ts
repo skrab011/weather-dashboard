@@ -162,6 +162,7 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
     // mode plumbing from W2). Capture the current brief result so the refresh
     // preserves last-good data on failure.
     const brief = state.brief;
+    const briefTitle = loc.inColorado ? "Consensus Brief" : "Forecast Brief";
     renderBrief(brief, async () => {
       const updated = await fetchBrief(brief, true, {
         lat: loc.lat,
@@ -169,7 +170,7 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
         inColorado: loc.inColorado,
       });
       store.updateBrief(updated);
-    });
+    }, briefTitle);
 
     // CO-gated: overlay chart, CAIC weather summary, Tomer video.
     // When not in CO, clear the regions so no skeleton/stale content lingers
