@@ -1,7 +1,9 @@
-const CACHE = "weather-v2";
+const CACHE = "weather-v3";
 
-// Core shell files to cache on install
-const PRECACHE = ["/", "/manifest.json", "/icons/icon-192.png"];
+// Core shell files to cache on install.
+// Both page shells are included so each is available offline after the
+// first visit without needing a network round-trip for the HTML.
+const PRECACHE = ["/", "/shared", "/manifest.json", "/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
