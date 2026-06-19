@@ -730,25 +730,15 @@ body {
     align-items: start;
   }
 
-  /* 7-Day view: three columns matching the top row proportions */
+  /* 7-Day view: three columns matching the top row proportions.
+     Cards sit at their natural height, top-aligned — the CAIC and Mountain
+     Weather Update cards are not stretched to match the taller 7-Day card. */
   .content[data-view="7day"] .desktop-bottom-row {
     display: grid;
     grid-template-columns: 30fr 40fr 30fr;
     grid-template-areas: "caic forecast tomer";
     gap: 1rem;
-    align-items: stretch;
-  }
-
-  /* Stretch CAIC and Tomer cards in 7-day view to match the 7-day card height */
-  .content[data-view="7day"] #caic-region,
-  .content[data-view="7day"] #tomer-region {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .content[data-view="7day"] #caic-region > .card,
-  .content[data-view="7day"] #tomer-region > .card {
-    flex: 1;
+    align-items: start;
   }
 
   /* Forecast column: no gap — only one child is ever visible */
