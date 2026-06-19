@@ -1,6 +1,6 @@
 # V2 — Shared Weather Dashboard: Project Overview
 
-> Status: **in progress** — W0 (scaffold), W3 (geocoding), W1 (shared-engine extraction), and **W2 (backend parameterization)** are built on branch `claude/weather-dashboard-v2-plan-u0x6jl`; **W4 (location picker + persistence) is next.** This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
+> Status: **in progress** — W0 (scaffold), W3 (geocoding), W1 (shared-engine extraction), W2 (backend parameterization), and **W4 (location picker + persistence)** are built on branch `claude/weather-dashboard-v2-plan-u0x6jl`; **W5 (Colorado gating) is next.** This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
 
 ---
 

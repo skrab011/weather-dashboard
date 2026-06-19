@@ -14,8 +14,9 @@ _Last updated 2026-06-19._
 - ✅ **W3 — Geocoding** (done out of order — it's independent of W1/W2). `api/geocode.ts` (Census → Nominatim fallback, US-only) + `src/shared-page/geocode.ts` (client + `inColorado`). Build/type-check clean. **Live endpoint + picker testing is DEFERRED until the branch merges** — the build environment blocks the geocoder hosts (`census.gov`, `nominatim.openstreetmap.org`) and the owner is on mobile. Test URLs are in the W3 section below.
 - ✅ **W1 — Shared-module extraction.** The high-risk, V1-touching step, done in the four sub-steps below — one commit each so a regression is easy to bisect. The full engine now lives in `src/shared/` and V1 imports it. **V1 regression verified green** (see "How V1 was verified" below). Committed + pushed.
 - ✅ **W2 — Backend parameterization.** Both serverless functions now accept arbitrary US lat/lon while V1's calls stay byte-identical. `api/air-quality.ts` adds `?lat=&lon=&temp=` beside the unchanged `?location=` path; `api/brief.ts` adds `?lat=&lon=&co=` with per-location Blob cache keys, no-param path still `consensus-brief.json`; both add US-bbox validation. Frontend `fetchAirQuality`/`fetchBrief` gained back-compat overloads so the **three V1 call sites emit unchanged requests**. Two commits (backend, then frontend signatures) for easy bisecting. **V1 regression verified** at the source level (live weather hosts blocked in build env — see W2 section below). Committed + pushed.
-- ⏭️ **Next: W4 — Location picker + persistence.** Run with Prompt 5 from `v2-prompts.md`. (W3 is already done.)
-- **Remaining:** W4, W5, W6, W7, W8.
+- ✅ **W4 — Location picker + persistence.** The shared page now boots for real. `src/shared-page/persistence.ts` (versioned localStorage, ≤2 locations, corruption-tolerant), `picker.ts` (one screen for both onboarding and manage: search → geocode → persist, cap 2, de-dupe, remove, US-only messaging), `render.ts` (parameterized `renderSharedShell` + `makeRenderAll(store, locations)` — the V2 counterpart to `src/render.ts`), and a rewritten `src/shared-main.ts` boot that seeds `createStore()` from stored locations and runs the V1-style per-location NWS + air-quality (lat/lon path) fetches plus zone-wide CAIC/Tomer and a per-location brief that refetches on tab switch. **No V1 source touched** — only new V2 files + an additive `style.css` section. **Note:** with `shared-main.ts` now importing the shared engine, the build code-splits it into a `cards-*.js` chunk both entries load; V1 behavior is identical but its bundle filenames changed (expected — this is the "both pages import one shared engine" end-state). Live picker/render verification deferred to the Vercel preview. Committed + pushed.
+- ⏭️ **Next: W5 — Colorado gating.** Run with Prompt 6 from `v2-prompts.md`.
+- **Remaining:** W5, W6, W7, W8.
 
 **Decisions added during the build:**
 - **Geocoder = Census + Nominatim fallback** (upgraded from "Census only"). Census `onelineaddress` is address-grade and unreliable for the bare city/ZIP input casual users type; Nominatim (free, no key) covers that gap. Both US-restricted.
@@ -40,7 +41,7 @@ The build/CI environment blocks the live weather hosts (NWS/PurpleAir/AirNow/CAI
 | **W1** | Shared-module extraction | **Yes** (repoints imports) | **High** | ✅ Done |
 | **W2** | Backend parameterization | Yes (back-compat) | Medium | ✅ Done |
 | **W3** | Geocoding | No | Low | ✅ Done |
-| **W4** | Location picker + persistence | No | Medium | Planned |
+| **W4** | Location picker + persistence | No | Medium | ✅ Done |
 | **W5** | Colorado gating | No | Low | Planned |
 | **W6** | Dual-mode brief | No (W2 enables) | Medium | Planned |
 | **W7** | Polish, PWA, SW, README | Minor | Low | Planned |
@@ -168,9 +169,19 @@ src/shared/
 
 ---
 
-## W4 — Location picker + persistence
+## W4 — Location picker + persistence ✅ Done
+
+> **Built 2026-06-19.** One additive commit (no V1 source touched). Implemented as the steps below specify, with two deliberate choices flagged **[as built]**: the onboarding and "Edit locations" screens are unified into one `renderLocationScreen`, and the V2 render wrapper lives in `src/shared-page/render.ts` (parallel to V1's `src/render.ts`) rather than reusing it.
 
 **Goal:** the shared page's UI for choosing, storing, and changing up to two locations.
+
+**[as built] Files:**
+- `src/shared-page/persistence.ts` — `loadLocations()`/`saveLocations()` under the versioned key `weather-shared-locations-v1`; validates each entry and caps at `MAX_LOCATIONS = 2`; any problem (missing key, bad JSON, wrong shape) returns `[]`.
+- `src/shared-page/picker.ts` — `renderLocationScreen(container, { onDone })` serves **both** the onboarding empty state and the manage screen. Search → `geocode()` (W3) → `addLocation()` (cap + de-dupe by rounded coords) → re-render. Remove buttons, and a "View dashboard →" button once ≥1 location exists. Friendly messages for not-found / US-only / error.
+- `src/shared-page/render.ts` — `renderSharedShell(locations, handlers)` (tabs built from chosen locations + an "Edit locations" button) and `makeRenderAll(store, locations)` (binds the shared card renderers to this store; `showPaTemp` is always `false` on the shared page; the brief refresh passes the active location's `lat/lon/inColorado`).
+- `src/shared-main.ts` — boot: `loadLocations()` → empty shows the picker, else seed `createStore()` and run the V1-style flow (per-location NWS + air-quality via the W2 lat/lon path; zone-wide CAIC/Tomer once; per-location brief that refetches on tab switch). "Edit locations" returns to the picker; finishing there re-boots.
+
+**[as built] Build-output note:** now that `shared-main.ts` imports the shared engine, Vite code-splits the common modules into a `cards-*.js` chunk that **both** `index.html` and `shared.html` load. V1's behavior and rendered HTML are unchanged, but its emitted bundle filenames differ from the pre-W4 single `main-*.js`. This is the intended "two pages, one shared engine" end-state, not a V1 regression.
 
 **Steps:**
 1. `src/shared-page/persistence.ts` — load/save an array of up to 2 `{ label, lat, lon, state, inColorado }` to `localStorage` under a versioned key (e.g. `weather-shared-locations-v1`). Tolerate missing/corrupt data (fall back to empty).
