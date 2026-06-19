@@ -23,8 +23,8 @@ import type {
   NWSPointsMeta,
   NWSTimeSeriesValue,
   SourceResult,
+  Location,
 } from "./types";
-import type { Location } from "./locations";
 
 const NWS_BASE = "https://api.weather.gov";
 

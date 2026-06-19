@@ -4,7 +4,7 @@
 // The ?refresh=true path is used by the manual refresh button.
 // ---------------------------------------------------------------------------
 
-import type { ConsensusBrief, SourceResult } from "./types";
+import type { ConsensusBrief, SourceResult } from "./shared/types";
 
 export async function fetchBrief(
   prev: SourceResult<ConsensusBrief>,

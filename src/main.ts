@@ -12,12 +12,12 @@
 
 import "./style.css";
 import { LOCATIONS } from "./locations";
-import { fetchPoints, fetchAllForLocation } from "./nws";
+import { fetchPoints, fetchAllForLocation } from "./shared/nws";
 import { fetchAirQuality } from "./airQuality";
-import { fetchCAIC } from "./caic";
-import { fetchTomer } from "./tomer";
+import { fetchCAIC } from "./shared/caic";
+import { fetchTomer } from "./shared/tomer";
 import { fetchBrief } from "./brief";
-import { calcSunTimes } from "./sun";
+import { calcSunTimes } from "./shared/sun";
 import { state, subscribe, updateLocationWeather, updateCAIC, updateTomer, updateBrief } from "./store";
 import { renderShell, renderAll } from "./render";
 

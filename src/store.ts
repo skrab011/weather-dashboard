@@ -20,7 +20,7 @@ import type {
   SourceResult,
   TomerVideo,
   ViewMode,
-} from "./types";
+} from "./shared/types";
 import { LOCATIONS } from "./locations";
 
 // An empty SourceResult represents the "loading" state:

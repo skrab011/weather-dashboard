@@ -17,12 +17,12 @@ import type {
   SourceResult,
   SunTimes,
   TomerVideo,
-} from "./types";
+} from "./shared/types";
 import { LOCATIONS } from "./locations";
 import { state, setActiveLocation, setActiveView, updateBrief } from "./store";
 import { fetchBrief } from "./brief";
-import { currentSeriesValue, sumSeriesNextHours } from "./nws";
-import { renderOverlayChart } from "./chart";
+import { currentSeriesValue, sumSeriesNextHours } from "./shared/nws";
+import { renderOverlayChart } from "./shared/chart";
 
 // ---------------------------------------------------------------------------
 // Utilities

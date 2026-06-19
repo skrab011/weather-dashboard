@@ -1,12 +1,9 @@
-// Single source of truth for the two locations this app serves.
+// Single source of truth for the two locations the personal page (V1) serves.
 // Referenced by the NWS fetch layer, the sun-time calculator, and the render layer.
+// The Location type now lives in the shared engine (src/shared/types.ts) so the
+// shared page (V2) can reuse it with its own user-chosen locations.
 
-export interface Location {
-  id: string;    // used as a key in state.weather and as a data attribute in the DOM
-  label: string; // displayed in the tab bar
-  lat: number;
-  lon: number;
-}
+import type { Location } from "./shared/types";
 
 export const LOCATIONS: [Location, Location] = [
   {

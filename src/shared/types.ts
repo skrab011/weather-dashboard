@@ -4,6 +4,17 @@
 // circular imports between nws.ts (data layer) and render.ts (view layer).
 // ---------------------------------------------------------------------------
 
+// A geographic location the app renders weather for. The personal page (V1)
+// uses two fixed locations (see src/locations.ts); the shared page (V2) builds
+// this list from user-chosen places. The shared engine is parameterized over
+// these, so the type lives here rather than in the V1-specific config.
+export interface Location {
+  id: string;    // used as a key in state.weather and as a data attribute in the DOM
+  label: string; // displayed in the tab bar
+  lat: number;
+  lon: number;
+}
+
 // Grid metadata returned by the NWS /points endpoint.
 // Required before any other NWS call — forecast URLs come from here.
 export interface NWSPointsMeta {
