@@ -26,6 +26,12 @@
   color: var(--fg);
 }
 
+/* Precipitation chance — midpoint between original 0.75rem and hour-time's 0.95rem */
+.hour-precip {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 /* Header row holding the title and the Edit button side by side */
 .app-header__top {
   display: flex;
