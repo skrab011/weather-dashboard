@@ -38,23 +38,25 @@ export function renderShell(): void {
   const app = document.querySelector<HTMLDivElement>("#app")!;
 
   app.innerHTML = `
-    <header class="app-header">
-      <span class="app-title">Weather</span>
-      <nav class="tab-bar" role="tablist" aria-label="Location">
-        ${LOCATIONS.map((loc, i) => `
-          <button
-            class="tab${i === 0 ? " tab--active" : ""}"
-            role="tab"
-            aria-selected="${i === 0}"
-            data-loc-index="${i}"
-          >${loc.label}</button>
-        `).join("")}
-      </nav>
-    </header>
+    <div class="sticky-nav">
+      <header class="app-header">
+        <span class="app-title">Weather</span>
+        <nav class="tab-bar" role="tablist" aria-label="Location">
+          ${LOCATIONS.map((loc, i) => `
+            <button
+              class="tab${i === 0 ? " tab--active" : ""}"
+              role="tab"
+              aria-selected="${i === 0}"
+              data-loc-index="${i}"
+            >${loc.label}</button>
+          `).join("")}
+        </nav>
+      </header>
 
-    <div class="view-toggle" role="group" aria-label="Forecast view">
-      <button class="toggle-btn toggle-btn--active" data-view="hourly">Hourly</button>
-      <button class="toggle-btn" data-view="7day">7-Day</button>
+      <div class="view-toggle" role="group" aria-label="Forecast view">
+        <button class="toggle-btn toggle-btn--active" data-view="hourly">Hourly</button>
+        <button class="toggle-btn" data-view="7day">7-Day</button>
+      </div>
     </div>
 
     <main class="content" data-view="hourly">

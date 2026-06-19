@@ -57,26 +57,28 @@ export function renderSharedShell(
   const app = document.querySelector<HTMLDivElement>("#app")!;
 
   app.innerHTML = `
-    <header class="app-header">
-      <div class="app-header__top">
-        <span class="app-title">Weather</span>
-        <button class="app-edit" type="button">Edit locations</button>
-      </div>
-      <nav class="tab-bar" role="tablist" aria-label="Location">
-        ${locations.map((loc, i) => `
-          <button
-            class="tab${i === 0 ? " tab--active" : ""}"
-            role="tab"
-            aria-selected="${i === 0}"
-            data-loc-index="${i}"
-          >${esc(loc.label)}</button>
-        `).join("")}
-      </nav>
-    </header>
+    <div class="sticky-nav">
+      <header class="app-header">
+        <div class="app-header__top">
+          <span class="app-title">Weather</span>
+          <button class="app-edit" type="button">Edit locations</button>
+        </div>
+        <nav class="tab-bar" role="tablist" aria-label="Location">
+          ${locations.map((loc, i) => `
+            <button
+              class="tab${i === 0 ? " tab--active" : ""}"
+              role="tab"
+              aria-selected="${i === 0}"
+              data-loc-index="${i}"
+            >${esc(loc.label)}</button>
+          `).join("")}
+        </nav>
+      </header>
 
-    <div class="view-toggle" role="group" aria-label="Forecast view">
-      <button class="toggle-btn toggle-btn--active" data-view="hourly">Hourly</button>
-      <button class="toggle-btn" data-view="7day">7-Day</button>
+      <div class="view-toggle" role="group" aria-label="Forecast view">
+        <button class="toggle-btn toggle-btn--active" data-view="hourly">Hourly</button>
+        <button class="toggle-btn" data-view="7day">7-Day</button>
+      </div>
     </div>
 
     <main class="content" data-view="hourly">

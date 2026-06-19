@@ -65,11 +65,19 @@ body {
 /* =========================================================================
    App header — title + location tabs
    ========================================================================= */
-.app-header {
+
+/* Sticky wrapper that keeps the header + view toggle pinned to the top of
+   the viewport on mobile as the user scrolls through the cards. On desktop
+   (960px+) this is overridden to position:static so both scroll with the
+   page (desktop cards are all visible at once, so pinning wastes space). */
+.sticky-nav {
   position: sticky;
   top: 0;
   z-index: 10;
   background: var(--bg);
+}
+
+.app-header {
   border-bottom: 1px solid var(--border);
   padding: 0.75rem 1rem 0;
 }
@@ -657,11 +665,14 @@ body {
    Header is no longer sticky; tabs and toggle re-centre with the content.
    ========================================================================= */
 @media (min-width: 960px) {
-  /* Unstick the header so it scrolls with the page; remove side padding so
-     the title stays at the screen left edge and the tab bar can centre itself
-     independently to align with the card columns */
-  .app-header {
+  /* Unstick on desktop so header + toggle scroll with the page */
+  .sticky-nav {
     position: static;
+  }
+
+  /* Remove side padding so the title stays at the screen left edge
+     and the tab bar can centre itself to align with the card columns */
+  .app-header {
     padding: 0.75rem 0 0;
   }
 

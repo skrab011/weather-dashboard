@@ -1,8 +1,18 @@
 /* =========================================================================
    Shared page (V2) styles — imported only by src/shared-main.ts.
    Keeps V1's style.css lean; any /shared-only rule belongs here.
-   Reuses the existing dark-mode tokens only; no new colors or fonts.
    ========================================================================= */
+
+/* Lifted background palette — V2 is ~15 lightness-points brighter than V1.
+   All four surface tokens are shifted proportionally so the card hierarchy
+   (bg → surface → surface-raised → border) stays the same relative contrast. */
+:root {
+  --bg:            #293040;   /* was #0b0d11 */
+  --surface:       #303848;   /* was #13161d */
+  --surface-raised:#38435c;   /* was #1c2030 */
+  --border:        #424c65;   /* was #252a38 */
+  --accent-dim:    #3a2a62;   /* was #241c3a — keep purple tint, proportionally lifted */
+}
 
 /* Header row holding the title and the Edit button side by side */
 .app-header__top {
