@@ -311,3 +311,33 @@ The initial V2 bg tried was `#293040` (a blue-navy), but after iteration the fin
 
 **Bug: hourly time labels unreadable after surface color change (two-pass fix).**
 After the surface tokens were updated, the hourly strip time labels ("11:00 AM", "12:00 PM", etc.) and card footer timestamps became very hard to read. Root cause: these elements use `--muted: #6b7280`, which has only ~2:1 contrast against the new `--surface: #34363b` — far below the minimum needed for small (0.75rem) text. First fix: added `--muted: #8a95a8` to V2's `:root` override (~3.7:1 contrast). Still not legible enough due to the small font size and light weight. Second fix: added an explicit `.hour-time` override in `src/shared-page/style.css` matching the Now card's `.cond-value` style — `font-size: 0.95rem`, `font-weight: 500`, `color: var(--fg)`. This uses the full primary text color and a heavier, larger rendering, making the labels clearly readable. V1 unchanged.
+
+---
+
+## Post-V2 improvements (2026-06-20)
+
+**Fix: blank page after Vercel deployments, requiring manual refresh (both V1 and V2).**
+
+**Root cause:** The service worker uses stale-while-revalidate — it serves the cached version of the page immediately, then fetches a fresh version in the background for next time. After a Vercel deployment, the cached HTML references old JavaScript filenames (Vite hashes filenames on every build, e.g. `assets/index-abc123.js`). Vercel only serves the *current* deployment's assets on the production domain — the old filename is gone. The SW served the stale HTML, the browser requested the old JS file, the SW had no cached copy and Vercel returned 404, so the JS failed to load silently. Result: blank page. A manual refresh served the newly cached HTML (from the background fetch), which referenced the new JS filename, which loaded fine from the network.
+
+**Fix:** Added an `updatefound` listener to the service worker registration in both `src/main.ts` (V1) and `src/shared-main.ts` (V2). When a new SW finishes installing and transitions to `activated`, the page calls `window.location.reload()` automatically. A `hadController` guard (captured at registration time) ensures the reload only fires on *updates* — if no SW was previously controlling the page (first ever visit, empty cache), `hadController` is `false` and no reload happens.
+
+```typescript
+const hadController = !!navigator.serviceWorker.controller;
+navigator.serviceWorker.register("/sw.js").then((registration) => {
+  registration.addEventListener("updatefound", () => {
+    const newWorker = registration.installing;
+    if (!newWorker) return;
+    newWorker.addEventListener("statechange", () => {
+      if (newWorker.state === "activated" && hadController) {
+        window.location.reload();
+      }
+    });
+  });
+}).catch(() => {});
+```
+
+No changes to `public/sw.js` were required — the existing `skipWaiting()` + `clients.claim()` already causes immediate activation, which is what triggers the `statechange` event the page listens for.
+
+**Bonus fix: V2 had no SW registration at all.**
+`src/shared-main.ts` never had a `serviceWorker.register()` call — the shared page was never registering the SW, so it had no offline caching and no PWA behavior. The fix adds the full registration block (with the `updatefound` listener) to `src/shared-main.ts` as part of this same change.

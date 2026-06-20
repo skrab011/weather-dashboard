@@ -44,7 +44,7 @@ Priority order for tradeoffs:
 - **Hosting:** Vercel free (Hobby) tier — static frontend + serverless functions
 - **Caching:** Vercel Blob (`@vercel/blob`) for the consensus brief JSON. CDN `s-maxage` headers on all `/api/` responses
 - **Scheduling:** No cron (requires Vercel Pro). Consensus brief regenerates on the CDN cache TTL (10 min) — next page load after expiry triggers a fresh AI call
-- **Service worker:** Cache version `weather-v3`. Precaches `/`, `/shared`, `/manifest.json`, `/icons/icon-192.png`. Skips all `/api/` routes so serverless functions are never intercepted
+- **Service worker:** Cache version `weather-v3`. Precaches `/`, `/shared`, `/manifest.json`, `/icons/icon-192.png`. Skips all `/api/` routes so serverless functions are never intercepted. Both `src/main.ts` (V1) and `src/shared-main.ts` (V2) register the SW and listen for `updatefound` — when a new SW activates after a Vercel deployment, the page auto-reloads so users always get fresh content without a manual refresh. A `hadController` guard ensures this only fires on updates, not on a user's very first visit.
 - **Failure isolation:** Every data source is wrapped in `SourceResult<T>`. Cards render independently; one source failing never affects others. CAIC is the most fragile — last-good data is preserved and shown with a stale timestamp
 
 ## Data sources & rules
@@ -146,7 +146,7 @@ A **second, separate page** (`shared.html` → `/shared`) for friends/family to 
 - **Overlay chart universal:** shown for ALL locations on the shared page. Outside CO, only the NWS series is drawn; CAIC data is explicitly replaced with a null `SourceResult` to prevent bleed from a CO-tab into a non-CO tab. Elevation label shown in chart legend only when ≥ 5,000 ft (label omitted below threshold — elevation matters less at low altitude). NWS elevation now read from the live gridpoint API (`properties.elevation` in meters) rather than a hardcoded table — this applies to both V1 and V2.
 - **Colorado gating on shared page:** CAIC Weather Summary and Tomer video are hidden (empty, no skeleton) when the active location is outside CO. Chart and all NWS cards always shown. `data-co` attribute on `.content` drives CSS visibility. CAIC/Tomer fetches are skipped entirely when no saved location is in CO.
 - **CSS split:** V2-specific styles (picker UI, CO-gating overrides) moved to `src/shared-page/style.css`, imported only by `src/shared-main.ts`. V1's `style.css` is ~2.9 kB leaner.
-- **Service worker:** `weather-v3`; precaches `/`, `/shared`, `/manifest.json`, `/icons/icon-192.png`. Shared page has no separate PWA manifest — not independently installable (by design, to keep it simple).
+- **Service worker:** `weather-v3`; precaches `/`, `/shared`, `/manifest.json`, `/icons/icon-192.png`. Shared page has no separate PWA manifest — not independently installable (by design, to keep it simple). `shared-main.ts` registers the SW and has the same `updatefound` auto-reload listener as V1 (see Architecture above).
 - **Per-location brief cache keys:** `brief-{lat.toFixed(2)}_{lon.toFixed(2)}.json` in Vercel Blob.
 
 **Build progress — all workstreams complete and merged to `main`:**
