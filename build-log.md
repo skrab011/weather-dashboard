@@ -341,3 +341,55 @@ No changes to `public/sw.js` were required — the existing `skipWaiting()` + `c
 
 **Bonus fix: V2 had no SW registration at all.**
 `src/shared-main.ts` never had a `serviceWorker.register()` call — the shared page was never registering the SW, so it had no offline caching and no PWA behavior. The fix adds the full registration block (with the `updatefound` listener) to `src/shared-main.ts` as part of this same change.
+
+**Fix: V2 not installable as a PWA (2026-06-20).**
+
+A family member on Android 13 (Samsung) couldn't install V2 as a PWA — the browser offered "Add Shortcut" instead of a proper install prompt, and nothing appeared on her home screen.
+
+Root cause: `shared.html` had no `<link rel="manifest">` tag. Without a web app manifest, browsers can't verify PWA installability criteria (the `display: standalone` field is what unlocks the install prompt). The W7 build decision deliberately omitted a V2-specific manifest ("keeping it simple; users can bookmark or use the V1 install"). That decision was made without consulting the owner and turned out to be wrong — a family member accessing only V2 at `/shared` has no path to a V1 install, and the experience was visibly broken.
+
+Fix: Created `public/manifest-shared.json` with:
+- `name: "Weather – Shared"`, `short_name: "Weather"`
+- `start_url: "/shared"`, `scope: "/shared"` — the `scope` field is key: it scopes the PWA to `/shared`, so V1 and V2 install as independent apps on the home screen rather than conflicting.
+- V2 color tokens (`background_color` and `theme_color` both `#292929`)
+- Same icon set as V1 (all three sizes, `"purpose": "any"`)
+
+Also added full iOS meta tags to `shared.html` that had been completely missing:
+```html
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Weather" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+```
+Without these, iOS Safari ignores the web manifest for home screen purposes and doesn't use the app icon correctly.
+
+Also fixed: `shared.html` had `theme-color` set to `#0b0d11` (V1's near-black), not V2's `#292929`. Corrected.
+
+`manifest-shared.json` added to the SW `PRECACHE` list so it's available offline.
+
+**Fix: icon appearance changed after reinstall — iOS lavender W became washed out (2026-06-20).**
+
+After reinstalling the PWA on iOS during troubleshooting, both V1 and V2 icons showed a lighter, whitish W instead of the expected solid lavender W.
+
+Root cause: both `manifest.json` and `manifest-shared.json` had `"purpose": "any maskable"` on all icon entries. iOS 16.4+ added support for maskable (adaptive) icons: when a manifest icon has `"purpose": "maskable"` or `"any maskable"`, iOS treats it as an adaptive icon — it applies safe-zone cropping (shrinks the image to fit within an inset circle) and may apply a tint or background. The existing icon images were not designed as maskable icons (they don't have a safe zone), so this cropping and processing made the W appear lighter and resized.
+
+Fix: changed all icon `"purpose"` values from `"any maskable"` to `"purpose": "any"` in both `manifest.json` and `manifest-shared.json`. With only `"any"`, iOS falls back to the explicit `<link rel="apple-touch-icon">` link in the HTML, which renders the PNG as-is without adaptive processing.
+
+Note for existing installs: the icon won't update automatically. Users who installed before this fix need to remove the app from their home screen and re-add it to see the correct icon.
+
+**Improvement: geocoder location labels cleaned up (2026-06-20).**
+
+Two label-formatting issues were discovered in `api/geocode.ts`:
+
+*Nominatim (handles city/ZIP/place queries):* Was returning `display_name` verbatim. Nominatim formats `display_name` as a long string like "Silverthorne, Summit County, Colorado, United States" — containing county and country, which is visual clutter for a tab label. Fix: read from Nominatim's structured `address` object instead. Priority order: `city` → `town` → `village` → `municipality` → `suburb` → `neighbourhood` → `county`. Combine with the 2-letter state abbreviation (extracted from the `ISO3166-2-lvl4` field, e.g. "US-CO" → "CO") to produce "City, ST". Falls back to `display_name` only if neither a place name nor state can be found.
+
+*Census Geocoder (handles street address queries):* Returns all-caps matched address including trailing ZIP, e.g. "42 LACY DR, SILVERTHORNE, CO, 80498". This was being used as the label directly. Fix: added `titleCaseAddress()` helper:
+1. Strip trailing ZIP — Census uses a comma-before-ZIP format (", 80498"), so the regex uses `/,?\s+\d{5}(?:-\d{4})?$/` (optional leading comma). A second `.replace(/,\s*$/, "")` strips any leftover trailing comma from edge cases.
+2. Lower-case the whole string, then title-case each word boundary (`\b\w`).
+3. Restore the state abbreviation to uppercase — after ZIP strip it appears at the very end of the string, so `/\b[A-Za-z]{2}$/` matches it and uppercases it.
+
+Result: "42 Lacy Dr, Silverthorne, CO".
+
+Bug encountered: first ZIP strip regex was `/\s+\d{5}(?:-\d{4})?$/` (space-before-ZIP only). Census actual format has a comma before the ZIP ("CO, 80498"), so stripping " 80498" left "CO," → title-cased to "Co," → state-uppercase regex `/\b[A-Za-z]{2}$/` failed (string ended with comma, not a letter). User reported seeing "42 Lacy Dr, Silverthorne, Co,". Fixed by making the leading comma optional in the strip regex and adding the fallback comma cleanup.
+
+Labels are stored in `localStorage` at search time; previously saved locations retain their old label until the user removes and re-adds the location.
