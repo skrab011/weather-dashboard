@@ -1,6 +1,6 @@
 # V2 — Shared Weather Dashboard: Project Overview
 
-> Status: **in progress** — W0 (scaffold), W3 (geocoding), W1 (shared-engine extraction), W2 (backend parameterization), and **W4 (location picker + persistence)** are built on branch `claude/weather-dashboard-v2-plan-u0x6jl`; **W5 (Colorado gating) is next.** This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md`.
+> Status: **complete — merged to `main` 2026-06-19.** Both V1 (`/`) and V2 (`/shared`) are live in production. This document is the source of truth for *what V2 is* and *why*. The step-by-step build sequence and live progress live in `v2-plan.md`; the working rules live in `v2-instructions.md`; copy-paste build prompts live in `v2-prompts.md` (archived).
 
 ---
 
@@ -92,7 +92,7 @@ Three Colorado-specific things must be **hidden — not errored** — when a loc
 
 1. **CAIC** (Weather Summary write-up + numerical point-forecast feed)
 2. **Chris Tomer "Mountain Weather Update"** YouTube embed (Colorado mountains only)
-3. **The overlay chart** (plots NWS + CAIC together; outside CO it loses half its data → hide entirely rather than show half-empty)
+3. **The overlay chart** *(as planned: hide when outside CO; **as built:** chart is shown for all locations — outside CO, only the NWS series is drawn and the CAIC data is replaced with an explicit null `SourceResult` to prevent bleed from a CO tab into a non-CO tab. Elevation label shown in legend only when ≥ 5,000 ft.)*
 
 **Mechanism:** compute an `inColorado` boolean **once**, when each location is set, and store it in `localStorage` alongside `lat`/`lon`/`label`. Every Colorado-specific component reads the active location's flag and renders or doesn't. *Hidden means absent, not an error state.*
 
