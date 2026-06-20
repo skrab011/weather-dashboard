@@ -111,7 +111,15 @@ async function geocodeNominatim(q: string): Promise<GeoHit | null> {
   const iso = m.address?.["ISO3166-2-lvl4"] ?? "";        // e.g. "US-CO"
   const state = iso.includes("-") ? iso.split("-")[1].toUpperCase() : "";
 
-  return { lat, lon, state, label: m.display_name ?? q, source: "nominatim" };
+  // Build a clean "City, ST" label from structured address fields rather than
+  // Nominatim's verbose display_name ("City, County, State, Country").
+  const addr = m.address ?? {};
+  const place = addr["city"] ?? addr["town"] ?? addr["village"]
+             ?? addr["municipality"] ?? addr["suburb"] ?? addr["neighbourhood"]
+             ?? addr["county"] ?? "";
+  const label = place && state ? `${place}, ${state}` : (m.display_name ?? q);
+
+  return { lat, lon, state, label, source: "nominatim" };
 }
 
 // ---------------------------------------------------------------------------
