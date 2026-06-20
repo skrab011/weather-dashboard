@@ -50,6 +50,16 @@ function inUS(lat: number, lon: number): boolean {
       && lon >= US_BBOX.lonMin && lon <= US_BBOX.lonMax;
 }
 
+// Census returns all-caps addresses ("42 LACY DR, SILVERTHORNE, CO 80498").
+// Title-case each word, then restore the 2-letter state abbreviation to full
+// uppercase (it appears immediately before the 5-digit ZIP code).
+function titleCaseAddress(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace(/\b[A-Za-z]{2}\b(?=\s+\d{5})/g, (m) => m.toUpperCase());
+}
+
 // ---------------------------------------------------------------------------
 // Census Geocoder — coordinates come back as { x: lon, y: lat }; state is the
 // 2-letter postal abbreviation in addressComponents.
@@ -76,7 +86,7 @@ async function geocodeCensus(q: string): Promise<GeoHit | null> {
     lat: m.coordinates.y,
     lon: m.coordinates.x,
     state: (m.addressComponents?.state ?? "").toUpperCase(),
-    label: m.matchedAddress ?? q,
+    label: m.matchedAddress ? titleCaseAddress(m.matchedAddress) : q,
     source: "census",
   };
 }
