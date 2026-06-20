@@ -163,3 +163,24 @@ function start(): void {
 }
 
 start();
+
+// Register service worker for offline caching.
+// Non-fatal if it fails — the app works fine without it.
+if ("serviceWorker" in navigator) {
+  // Capture whether a SW was already controlling the page before registration.
+  // Used below to distinguish a first install (no reload) from an update (reload).
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("/sw.js").then((registration) => {
+    registration.addEventListener("updatefound", () => {
+      const newWorker = registration.installing;
+      if (!newWorker) return;
+      newWorker.addEventListener("statechange", () => {
+        if (newWorker.state === "activated" && hadController) {
+          window.location.reload();
+        }
+      });
+    });
+  }).catch(() => {
+    // Silently ignore — offline support is a progressive enhancement
+  });
+}
