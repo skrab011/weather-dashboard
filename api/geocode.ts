@@ -55,9 +55,10 @@ function inUS(lat: number, lon: number): boolean {
 // uppercase (it appears immediately before the 5-digit ZIP code).
 function titleCaseAddress(s: string): string {
   return s
+    .replace(/\s+\d{5}(?:-\d{4})?$/, "")   // strip trailing ZIP (e.g. " 80498")
     .toLowerCase()
     .replace(/\b\w/g, (c) => c.toUpperCase())
-    .replace(/\b[A-Za-z]{2}\b(?=\s+\d{5})/g, (m) => m.toUpperCase());
+    .replace(/\b[A-Za-z]{2}$/, (m) => m.toUpperCase()); // restore state abbr now at end
 }
 
 // ---------------------------------------------------------------------------
