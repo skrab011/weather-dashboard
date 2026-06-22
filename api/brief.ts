@@ -75,19 +75,50 @@ async function writeCached(blobName: string, result: BriefResult): Promise<void>
 }
 
 // ---------------------------------------------------------------------------
+// NWS Area Forecast Discussion (AFD) — the forecaster-written regional
+// narrative published nationwide, free and keyless. Two sequential calls:
+//   1. /products/types/AFD/locations/{office} → list, newest first
+//   2. the latest product's @id            → { productText }
+// Self-contained and non-throwing: any failure returns "Unavailable" so a
+// missing AFD never blocks brief generation (failure isolation).
+// The text is collapsed and length-capped to keep AI token cost trivial.
+// ---------------------------------------------------------------------------
+async function fetchAFD(office: string): Promise<string> {
+  if (!office) return "Unavailable";
+  try {
+    const lr = await fetch(`${NWS_BASE}/products/types/AFD/locations/${office}`, { headers: { "User-Agent": NWS_UA }, signal: AbortSignal.timeout(8_000) });
+    if (!lr.ok) return "Unavailable";
+    const lj = await lr.json() as { "@graph"?: Array<{ "@id"?: string; id?: string }> };
+    const latest = lj["@graph"]?.[0];
+    const productUrl = latest?.["@id"] ?? (latest?.id ? `${NWS_BASE}/products/${latest.id}` : null);
+    if (!productUrl) return "Unavailable";
+
+    const pr = await fetch(productUrl, { headers: { "User-Agent": NWS_UA }, signal: AbortSignal.timeout(8_000) });
+    if (!pr.ok) return "Unavailable";
+    const pj = await pr.json() as { productText?: string };
+    const text = (pj.productText ?? "").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
+    if (!text) return "Unavailable";
+    return text.length > 1800 ? text.slice(0, 1800) + "…" : text;
+  } catch {
+    return "Unavailable";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // NWS data fetch
 // ---------------------------------------------------------------------------
-async function fetchNWS(lat: number, lon: number): Promise<{ alerts: string; hourly: string; sevenDay: string }> {
+async function fetchNWS(lat: number, lon: number): Promise<{ alerts: string; hourly: string; sevenDay: string; afd: string }> {
   const pr = await fetch(`${NWS_BASE}/points/${lat},${lon}`, { headers: { "User-Agent": NWS_UA }, signal: AbortSignal.timeout(8_000) });
   if (!pr.ok) throw new Error(`NWS /points ${pr.status}`);
-  const pj = await pr.json() as { properties: { forecastHourly: string; forecast: string; county: string } };
-  const { forecastHourly, forecast, county } = pj.properties;
+  const pj = await pr.json() as { properties: { forecastHourly: string; forecast: string; county: string; gridId: string } };
+  const { forecastHourly, forecast, county, gridId } = pj.properties;
   const countyId = county.split("/").pop() ?? "";
 
-  const [hr, fr, ar] = await Promise.all([
+  const [hr, fr, ar, afd] = await Promise.all([
     fetch(forecastHourly, { headers: { "User-Agent": NWS_UA }, signal: AbortSignal.timeout(8_000) }),
     fetch(forecast,       { headers: { "User-Agent": NWS_UA }, signal: AbortSignal.timeout(8_000) }),
     fetch(`${NWS_BASE}/alerts/active?zone=${countyId}`, { headers: { "User-Agent": NWS_UA }, signal: AbortSignal.timeout(8_000) }),
+    fetchAFD(gridId),
   ]);
 
   const cutoff = Date.now() + 48 * 3_600_000;
@@ -118,7 +149,7 @@ async function fetchNWS(lat: number, lon: number): Promise<{ alerts: string; hou
     if (active.length > 0) alerts = active.map(a => `${a.event}: ${a.headline}`).join("\n");
   }
 
-  return { alerts, hourly, sevenDay };
+  return { alerts, hourly, sevenDay, afd };
 }
 
 // ---------------------------------------------------------------------------
@@ -198,7 +229,7 @@ async function generateBrief(lat: number, lon: number, inColorado: boolean): Pro
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
 
-  const nwsPromise = fetchNWS(lat, lon).catch(() => ({ alerts: "Unavailable", hourly: "Unavailable", sevenDay: "Unavailable" }));
+  const nwsPromise = fetchNWS(lat, lon).catch(() => ({ alerts: "Unavailable", hourly: "Unavailable", sevenDay: "Unavailable", afd: "Unavailable" }));
   // Only fetch CAIC when the location is in Colorado
   const caicPromise = inColorado
     ? fetchCAIC(lat, lon).catch(() => ({ summary: "Unavailable", pointForecast: "Unavailable" }))
@@ -211,7 +242,7 @@ async function generateBrief(lat: number, lon: number, inColorado: boolean): Pro
   const prompt = caic
     ? `You are a concise weather forecaster for a Colorado mountain location.
 
-Summarize the forecasts below in 3–5 plain-language sentences. Focus on where NWS and CAIC agree, and note any meaningful differences. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
+Summarize the forecasts below in 3–5 plain-language sentences. Focus on where NWS and CAIC agree, and note any meaningful differences. Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
 
 NWS ACTIVE ALERTS:
 ${nws.alerts}
@@ -222,6 +253,9 @@ ${nws.hourly}
 NWS 7-DAY FORECAST:
 ${nws.sevenDay}
 
+NWS FORECASTER DISCUSSION (Area Forecast Discussion):
+${nws.afd}
+
 CAIC WEATHER SUMMARY:
 ${caic.summary}
 
@@ -229,7 +263,7 @@ CAIC POINT FORECAST (next 48h):
 ${caic.pointForecast}`
     : `You are a concise weather forecaster.
 
-Summarize the NWS forecast below in 3–5 plain-language sentences. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
+Summarize the forecast below in 3–5 plain-language sentences. Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
 
 NWS ACTIVE ALERTS:
 ${nws.alerts}
@@ -238,7 +272,10 @@ NWS HOURLY FORECAST (next 48h):
 ${nws.hourly}
 
 NWS 7-DAY FORECAST:
-${nws.sevenDay}`;
+${nws.sevenDay}
+
+NWS FORECASTER DISCUSSION (Area Forecast Discussion):
+${nws.afd}`;
 
   const aiRes = await fetch(ANTHROPIC_API, {
     method: "POST",
