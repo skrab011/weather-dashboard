@@ -1,12 +1,13 @@
 # Forecast Comparison Upgrade — Build Plan
 
-> Status: **in progress.** **D1** and **Track A (A1–A3)** complete and merged to
-> `main` (2026-06-22) — the comparison chart now draws the ECMWF (Open-Meteo)
-> line alongside NWS and CAIC. Next up: Track B (disagreement-highlight band).
-> This doc is the source of truth for three related upgrades to the
-> temperature/forecast comparison chart and the AI brief. Read this first; each
-> step has a matching copy-paste prompt in the "Session prompts" appendix at the
-> bottom.
+> Status: **in progress.** **D1**, **Track A (A1–A3)**, and **Track B B1**
+> complete and merged to `main` (2026-06-22) — the comparison chart draws the
+> ECMWF (Open-Meteo) line alongside NWS and CAIC, with a shaded
+> model-disagreement band behind the lines. Next up: B2 (plain-language spread
+> note, folded into the brief) and/or Track C (variable toggle). This doc is the
+> source of truth for three related upgrades to the temperature/forecast
+> comparison chart and the AI brief. Read this first; each step has a matching
+> copy-paste prompt in the "Session prompts" appendix at the bottom.
 >
 > Companion to `CLAUDE.md` (project rules), `v2-overview.md`/`v2-plan.md` (how
 > V1 and V2 share one engine), and `build-log.md` (history).
@@ -163,7 +164,7 @@ we don't crowd the chart.
 
 ---
 
-## 5. Track B — Disagreement highlight
+## 5. Track B — Disagreement highlight  ✅ B1 done (merged to `main` 2026-06-22)
 
 **Goal:** a subtle shaded band behind the lines showing the spread between models
 at each hour, so you can see at a glance where the forecasts agree vs. diverge.
@@ -174,7 +175,7 @@ at each hour, so you can see at a glance where the forecasts agree vs. diverge.
 
 ### Steps
 
-- **B1 — Spread band.**
+- **B1 — Spread band. ✅ Done (owner verified on preview; opacity tuned to 0.22, 2026-06-22).**
   For each hour, compute min and max across the available series (NWS, CAIC,
   ECMWF) and draw a faint filled band between them (Chart.js "fill between two
   datasets"). Keep it subtle (low opacity, neutral color) so it reads as

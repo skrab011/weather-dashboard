@@ -483,3 +483,29 @@ build on.
 
 **Verification.** Owner verified the three-line chart on V1 (preview deploy).
 Merged to `main` 2026-06-22.
+
+### Track B (B1) — model-disagreement band on the comparison chart ✅ (merged to `main`)
+
+**What & why.** With 2–3 model lines now on the chart, the useful signal is
+*where they diverge*. B1 shades the per-hour spread between the available
+lines so agreement (pinched band) vs. disagreement (wide band) reads at a
+glance — turning the chart from "pretty" into "tells you when to trust it".
+
+**Implementation (all in `src/shared/chart.ts`).**
+- Per hour, gather that hour's non-null values across `nwsTemps` / `caicTemps` /
+  `omTemps`; if ≥2 exist, the band's max = `Math.max`, min = `Math.min`,
+  otherwise null (gap). The whole band is drawn only when ≥2 series are present,
+  so V1 (3 lines) and non-CO V2 (NWS + ECMWF) get it; NWS-only does not.
+- Implemented as two extra datasets inserted at the **front** of the dataset
+  array (so they render *behind* the lines): a `__band_max` dataset with the
+  neutral fill that fills down to the next dataset (`fill: "+1"`), and a
+  `__band_min` dataset (transparent). Required registering Chart.js's `Filler`
+  plugin (the model lines use `fill: false`, so it wasn't needed before; adds
+  ~8 kB to the cards chunk).
+- The helper datasets are flagged with a `"__"` label prefix and excluded from
+  the **legend** (`labels.filter`) and **tooltip** (`tooltip.filter`), so the UI
+  still shows only the three real model series and hover still reads real values.
+
+**Tuning.** Initial fill opacity `0.13` read too light on the owner's preview;
+bumped to `0.22` (still subtle background, not a fourth line). Owner verified.
+Merged to `main` 2026-06-22.

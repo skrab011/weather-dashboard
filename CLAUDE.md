@@ -177,6 +177,7 @@ A multi-step epic to make the forecast comparison chart + AI brief more useful o
 - **New free, keyless data sources introduced by this epic:** NWS AFD (`api.weather.gov/products`) and Open-Meteo (`api.open-meteo.com`, ECMWF/GFS/etc.). Both are CORS-friendly and follow the NWS direct-from-browser pattern (no serverless proxy); the brief's AFD call is server-side inside `api/brief.ts`.
 - ✅ **D1 done (merged to `main` 2026-06-22):** AFD folded into both brief prompts. See `build-log.md` → "Forecast comparison upgrade".
 - ✅ **Track A (A1–A3) done (merged to `main` 2026-06-22):** ECMWF (Open-Meteo) drawn as a third line on the comparison chart (cyan), per location, alongside NWS + CAIC. New `src/shared/openmeteo.ts`; `openMeteo` field on `LocationWeather`. Non-CO V2 locations now show NWS + ECMWF. Wind/precip/snow are fetched but not yet drawn (await Track C). See `build-log.md`.
+- ✅ **Track B (B1) done (merged to `main` 2026-06-22):** shaded model-disagreement band behind the chart lines (per-hour min/max spread, drawn when ≥2 series present). Hidden helper datasets via `"__"`-prefixed labels + legend/tooltip filters; required registering Chart.js `Filler`. Band fill opacity 0.22. See `build-log.md`.
 
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
