@@ -51,7 +51,7 @@ function emptyLocationWeather(): LocationWeather {
     alerts:     emptyResult<NWSAlert[]>(),
     sunTimes:   null,
     airQuality: emptyResult<LocationAirQuality>(),
-    openMeteo:  emptyResult<OpenMeteoForecast>(),
+    openMeteo:  emptyResult<OpenMeteoForecast[]>(),
   };
 }
 

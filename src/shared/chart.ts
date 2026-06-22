@@ -42,7 +42,8 @@ const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
 // Design-system colours — must match style.css custom properties.
 const COLOR_NWS   = "#b39ddb"; // --accent (lavender)
 const COLOR_CAIC  = "#f59e0b"; // --warn
-const COLOR_OM    = "#4dd0e1"; // cyan/teal — ECMWF / Open-Meteo, distinct from the above
+const COLOR_OM    = "#4dd0e1"; // cyan/teal — ECMWF (European model)
+const COLOR_GFS   = "#81c784"; // green — GFS (American model)
 const COLOR_BAND  = "rgba(154,163,178,0.22)"; // faint neutral — model-disagreement band
 const COLOR_GRID  = "#252a38"; // --border
 const COLOR_TICKS = "#6b7280"; // --muted
@@ -54,6 +55,21 @@ function modelLabel(model: string): string {
   if (model.startsWith("gfs"))   return "GFS";
   if (model.startsWith("icon"))  return "ICON";
   return model;
+}
+
+// Line colour for an Open-Meteo model. ECMWF is cyan; GFS is green.
+function modelColor(model: string): string {
+  if (model.startsWith("gfs")) return COLOR_GFS;
+  return COLOR_OM; // ECMWF and fallback
+}
+
+// Translucent version of a "#rrggbb" colour — used for the faint legend-box fill.
+function rgba(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 // Parse an NWS wind-speed string ("10 mph", "10 to 15 mph") to a number in mph.
@@ -90,7 +106,7 @@ export function renderOverlayChart(
   nwsHourly: NWSPeriod[] | null,
   caicForecast: CAICPointForecastRow[] | null,
   nwsElevFt: number | null,
-  openMeteo: OpenMeteoForecast | null,
+  openMeteoModels: OpenMeteoForecast[] | null,
   variable: ChartVar,
 ): void {
   // Nothing to draw yet — NWS data still loading
@@ -177,14 +193,9 @@ export function renderOverlayChart(
     ? alignToNws(caicForecast, caicField)
     : null;
 
-  const omVals = openMeteo && openMeteo.rows.length > 0
-    ? alignToNws(openMeteo.rows, omField)
-    : null;
-
   // A series may exist but have no values for the selected variable (e.g. CAIC
   // wind missing) — don't draw an empty line / orphan legend entry in that case.
   const caicHasData = !!caicVals && caicVals.some((v) => v !== null);
-  const omHasData   = !!omVals && omVals.some((v) => v !== null);
 
   // Destroy the previous chart before touching the canvas
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
@@ -203,6 +214,8 @@ export function renderOverlayChart(
     : "NWS";
 
   const datasets: Chart["data"]["datasets"] = [];
+  // Every drawn line's values, so the disagreement band can span them all.
+  const drawnSeries: (number | null)[][] = [];
 
   // NWS series — temp/wind only (omitted for precip/snow amounts).
   if (includeNws && nwsVals) {
@@ -210,12 +223,13 @@ export function renderOverlayChart(
       label:           nwsLabel,
       data:            nwsVals,
       borderColor:     COLOR_NWS,
-      backgroundColor: "rgba(179,157,219,0.07)",
+      backgroundColor: rgba(COLOR_NWS, 0.07),
       borderWidth:     2,
       pointRadius:     0,       // hide individual points — too cluttered at 48hrs
       tension:         lineTension,
       fill:            false,
     });
+    drawnSeries.push(nwsVals);
   }
 
   // CAIC series — only added when data is available.
@@ -224,31 +238,37 @@ export function renderOverlayChart(
       label:           isTemp ? `CAIC (~${elev(CAIC_ELEV_FT)})` : "CAIC",
       data:            caicVals!,
       borderColor:     COLOR_CAIC,
-      backgroundColor: "rgba(245,158,11,0.07)",
+      backgroundColor: rgba(COLOR_CAIC, 0.07),
       borderWidth:     2,
       pointRadius:     0,
       tension:         lineTension,
       fill:            false,
     });
+    drawnSeries.push(caicVals!);
   }
 
-  // Open-Meteo (ECMWF) series — only added when data is available.
-  // Elevation label uses the same ≥ 5,000 ft threshold as the NWS label.
-  if (omHasData && openMeteo) {
-    const omName = modelLabel(openMeteo.model);
-    const omLabel = isTemp && openMeteo.elevationFt !== null && openMeteo.elevationFt >= 5_000
-      ? `${omName} (${elev(Math.round(openMeteo.elevationFt))})`
-      : omName;
+  // One line per Open-Meteo model (ECMWF, GFS, …) that has data for this
+  // variable. Elevation label uses the same ≥ 5,000 ft threshold as NWS.
+  for (const om of openMeteoModels ?? []) {
+    if (om.rows.length === 0) continue;
+    const vals = alignToNws(om.rows, omField);
+    if (!vals.some((v) => v !== null)) continue;
+    const name  = modelLabel(om.model);
+    const label = isTemp && om.elevationFt !== null && om.elevationFt >= 5_000
+      ? `${name} (${elev(Math.round(om.elevationFt))})`
+      : name;
+    const color = modelColor(om.model);
     datasets.push({
-      label:           omLabel,
-      data:            omVals!,
-      borderColor:     COLOR_OM,
-      backgroundColor: "rgba(77,208,225,0.07)",
+      label,
+      data:            vals,
+      borderColor:     color,
+      backgroundColor: rgba(color, 0.07),
       borderWidth:     2,
       pointRadius:     0,
       tension:         lineTension,
       fill:            false,
     });
+    drawnSeries.push(vals);
   }
 
   // Disagreement band — shade the spread between the available model lines so
@@ -257,15 +277,11 @@ export function renderOverlayChart(
   // values. The two band datasets are inserted at the front of the array so they
   // render *behind* the lines, and are flagged with a "__" label prefix so they
   // are excluded from the legend and tooltip (see the filters below).
-  const bandSeries: (number | null)[][] = [];
-  if (includeNws && nwsVals) bandSeries.push(nwsVals);
-  if (caicHasData) bandSeries.push(caicVals!);
-  if (omHasData)   bandSeries.push(omVals!);
-  if (bandSeries.length >= 2) {
+  if (drawnSeries.length >= 2) {
     const bandMax: (number | null)[] = [];
     const bandMin: (number | null)[] = [];
     for (let i = 0; i < labels.length; i++) {
-      const vals = bandSeries
+      const vals = drawnSeries
         .map((s) => s[i])
         .filter((v): v is number => v !== null && Number.isFinite(v));
       if (vals.length >= 2) {

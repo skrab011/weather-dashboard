@@ -2,14 +2,15 @@
 // Open-Meteo data layer — free, keyless, CORS-friendly multi-model forecast API.
 //
 // Like NWS, Open-Meteo is called directly from the browser (no serverless
-// proxy, no API key). It serves several global weather models; we start with
-// ECMWF (the European model) to give the comparison chart a second opinion —
-// especially valuable for non-Colorado locations on the shared page, which
-// otherwise have only NWS.
+// proxy, no API key). It serves several global weather models; we draw ECMWF
+// (the European model) and GFS (the American model) so the comparison chart has
+// independent second/third opinions — especially valuable for non-Colorado
+// locations on the shared page, which otherwise have only NWS.
 //
-// Each function fetches one model for one location and throws on failure; the
-// caller wraps it in the SourceResult/settle() failure-isolation envelope so a
-// missing Open-Meteo line never affects other chart series or cards.
+// We fetch one model per request (rather than one combined multi-model request)
+// so each model keeps its own clean grid-cell elevation. Each per-model fetch
+// throws on failure; the caller wraps the set in a SourceResult so a missing
+// model never affects the others or any other card.
 //
 // UNIT NOTE: we request Fahrenheit / mph / inch explicitly. Snowfall is part of
 // Open-Meteo's precipitation family and is returned in inches when
@@ -25,10 +26,11 @@ import type { OpenMeteoForecast, OpenMeteoRow, SourceResult } from "./types";
 
 const OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast";
 
-// ECMWF IFS at 0.25° — the European model. Track A4 may add GFS/ICON later by
-// extending the `models` param; the series accessor below already tolerates the
-// suffixed field names Open-Meteo uses when more than one model is requested.
-const OPEN_METEO_MODEL = "ecmwf_ifs025";
+// Models drawn on the chart, in order:
+//   ecmwf_ifs025  → ECMWF, the European model (0.25°)
+//   gfs_seamless  → GFS, the American model (uses HRRR near-term over the US)
+// Add ICON etc. here later; the chart draws one line per model automatically.
+const OPEN_METEO_MODELS = ["ecmwf_ifs025", "gfs_seamless"];
 
 const METERS_TO_FEET = 3.28084;
 
@@ -56,10 +58,11 @@ interface OpenMeteoResponse {
 // ---------------------------------------------------------------------------
 // Fetch one model's hourly forecast for a location.
 //   lat, lon  decimal degrees
+//   model     Open-Meteo model id (e.g. "ecmwf_ifs025")
 // Returns normalized rows (UTC ISO timestamps) + the model grid-cell elevation.
 // Throws on HTTP error or a malformed response.
 // ---------------------------------------------------------------------------
-export async function fetchOpenMeteo(lat: number, lon: number): Promise<OpenMeteoForecast> {
+async function fetchOneModel(lat: number, lon: number, model: string): Promise<OpenMeteoForecast> {
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
@@ -69,23 +72,23 @@ export async function fetchOpenMeteo(lat: number, lon: number): Promise<OpenMete
     precipitation_unit: "inch",
     timeformat: "unixtime", // absolute UTC seconds — unambiguous for alignment
     forecast_days: "3",
-    models: OPEN_METEO_MODEL,
+    models: model,
   });
 
   const res = await fetch(`${OPEN_METEO_BASE}?${params.toString()}`);
-  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status} (${model})`);
 
   const json = (await res.json()) as OpenMeteoResponse;
   const hourly = json.hourly;
   if (!hourly || !Array.isArray(hourly.time)) {
-    throw new Error("Open-Meteo: hourly.time missing from response");
+    throw new Error(`Open-Meteo: hourly.time missing from response (${model})`);
   }
 
   const times = hourly.time as number[];
-  const temps  = series(hourly, "temperature_2m", OPEN_METEO_MODEL);
-  const winds  = series(hourly, "wind_speed_10m", OPEN_METEO_MODEL);
-  const precs  = series(hourly, "precipitation", OPEN_METEO_MODEL);
-  const snows  = series(hourly, "snowfall", OPEN_METEO_MODEL);
+  const temps  = series(hourly, "temperature_2m", model);
+  const winds  = series(hourly, "wind_speed_10m", model);
+  const precs  = series(hourly, "precipitation", model);
+  const snows  = series(hourly, "snowfall", model);
 
   const rows: OpenMeteoRow[] = times.map((unixSec, i) => ({
     dateTime: new Date(unixSec * 1000).toISOString(),
@@ -98,7 +101,27 @@ export async function fetchOpenMeteo(lat: number, lon: number): Promise<OpenMete
   const elevationFt =
     typeof json.elevation === "number" ? json.elevation * METERS_TO_FEET : null;
 
-  return { model: OPEN_METEO_MODEL, elevationFt, rows };
+  return { model, elevationFt, rows };
+}
+
+// ---------------------------------------------------------------------------
+// Fetch all configured models for a location, in parallel. Returns the models
+// that succeeded (so one model failing still draws the others). Throws only if
+// every model fails, so the caller's SourceResult reflects a real outage.
+// ---------------------------------------------------------------------------
+export async function fetchOpenMeteo(lat: number, lon: number): Promise<OpenMeteoForecast[]> {
+  const settled = await Promise.allSettled(
+    OPEN_METEO_MODELS.map((m) => fetchOneModel(lat, lon, m)),
+  );
+  const ok = settled
+    .filter((r): r is PromiseFulfilledResult<OpenMeteoForecast> => r.status === "fulfilled")
+    .map((r) => r.value);
+
+  if (ok.length === 0) {
+    const firstErr = settled.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+    throw firstErr?.reason instanceof Error ? firstErr.reason : new Error("Open-Meteo: all models failed");
+  }
+  return ok;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,8 +135,8 @@ export async function fetchOpenMeteo(lat: number, lon: number): Promise<OpenMete
 export async function fetchOpenMeteoResult(
   lat: number,
   lon: number,
-  prev: SourceResult<OpenMeteoForecast>,
-): Promise<SourceResult<OpenMeteoForecast>> {
+  prev: SourceResult<OpenMeteoForecast[]>,
+): Promise<SourceResult<OpenMeteoForecast[]>> {
   try {
     const data = await fetchOpenMeteo(lat, lon);
     const now = new Date();

@@ -550,7 +550,7 @@ export function renderChart(
   hourlyResult: SourceResult<NWSPeriod[]>,
   pointForecastResult: SourceResult<CAICPointForecastRow[]>,
   nwsElevFt: number | null,
-  openMeteoResult: SourceResult<OpenMeteoForecast>,
+  openMeteoResult: SourceResult<OpenMeteoForecast[]>,
   activeVar: ChartVar,
   onSelectVar: (variable: ChartVar) => void,
 ): void {
