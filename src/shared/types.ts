@@ -192,6 +192,35 @@ export interface CAICZoneData {
 }
 
 // ---------------------------------------------------------------------------
+// Open-Meteo types — free, keyless multi-model forecast API.
+//
+// Used to add extra global-model lines (starting with ECMWF, the European
+// model) to the comparison chart. Open-Meteo is CORS-friendly and called
+// directly from the browser, like NWS. Field names mirror CAICPointForecastRow
+// (`dateTime`, `tempF`, …) so the chart can align all series the same way.
+//
+// Wind/precip/snow are fetched now but only temperature is drawn until the
+// variable toggle (Track C) lands. Attribution ("Weather data by Open-Meteo")
+// is added in the chart UI.
+// ---------------------------------------------------------------------------
+
+// One hourly row from an Open-Meteo model.
+export interface OpenMeteoRow {
+  dateTime: string;        // ISO 8601 (UTC) — absolute time for chart alignment
+  tempF: number | null;
+  windMph: number | null;
+  precipIn: number | null;
+  snowIn: number | null;
+}
+
+// A single model's forecast for one location.
+export interface OpenMeteoForecast {
+  model: string;               // Open-Meteo model id, e.g. "ecmwf_ifs025"
+  elevationFt: number | null;  // model grid-cell elevation (for the chart label)
+  rows: OpenMeteoRow[];
+}
+
+// ---------------------------------------------------------------------------
 // Chris Tomer types — YouTube description pull
 //
 // We display only the description text from his latest "Mountain Weather
