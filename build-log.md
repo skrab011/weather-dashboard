@@ -565,4 +565,47 @@ made this tractable by supplying wind in consistent units alongside CAIC.
 **Watch-items.** NWS wind ranges are averaged to a single value (deliberate
 simplification). Verified on mobile (V1); desktop spot-check deferred (owner away
 from desktop) — additive change, Temp view identical to prior production. Merged
-to `main` 2026-06-22. **C2 (Precip/Snow as amounts) deferred** — to revisit.
+to `main` 2026-06-22.
+
+### Track C (C2) — Precip/Snow as amounts on the chart ✅ (merged to `main`)
+
+**What & why.** Completed the variable toggle with Precip and Snow, plotted as
+**amounts in inches**. NWS is deliberately omitted for these — its hourly feed
+reports precip *probability* (%), not an amount, so it can't share the axis
+honestly (the mismatch flagged at the start of the epic). So Precip/Snow draw
+**CAIC + ECMWF only** (CAIC + ECMWF in CO; ECMWF alone outside CO).
+
+**Implementation (`src/shared/chart.ts`, `cards.ts`, `style.css`).**
+- `ChartVar` extended with `"precip" | "snow"`. `renderOverlayChart` computes an
+  `isAmount` flag; for amount variables it skips the NWS dataset (`includeNws`),
+  selects each source's `precipIn`/`snowIn` field, sets the Y-axis title/units to
+  inches, anchors the axis at zero (`beginAtZero`), and uses straight segments
+  (`tension: 0`) so a 0→spike→0 line can't visually dip below zero. The
+  disagreement band is built from whatever series are actually drawn.
+- Two more toggle buttons (Precip, Snow); `.chart-var-toggle` now `flex-wrap`s
+  for the four buttons on narrow screens.
+
+**Units note (important).** CAIC precip/snow are **inches** — confirmed by the
+owner from prior looper experience. **Open-Meteo precip/snow units are not yet
+verified against live data**: we request `precipitation_unit=inch`, but
+Open-Meteo sometimes reports snowfall in cm regardless. Verify magnitudes during
+the next rain (precip) and the first winter snow (snow); if the ECMWF snow line
+reads ~2.5× too high, add a cm→inch conversion in `src/shared/openmeteo.ts`.
+Shipping in June is low-risk (snow ≈ 0 everywhere). Verified on mobile; merged to
+`main` 2026-06-22.
+
+---
+
+## Forecast comparison upgrade — COMPLETE (2026-06-22)
+
+All four tracks shipped to production on both V1 and V2, each built in small
+single-commit steps, verified on a Vercel preview, and merged to `main` only
+after owner sign-off:
+- **D1** — NWS Area Forecast Discussion folded into the AI brief.
+- **Track A (A1–A3)** — ECMWF (Open-Meteo) line on the comparison chart.
+- **Track B (B1+B2)** — model-disagreement band + plain-language model-spread
+  note in the brief.
+- **Track C (C1+C2)** — Temp/Wind/Precip/Snow variable toggle.
+
+Open follow-up: confirm Open-Meteo precip/snow units (above) during the next
+precipitation/snow event.

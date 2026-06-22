@@ -1,14 +1,13 @@
 # Forecast Comparison Upgrade — Build Plan
 
-> Status: **in progress.** **D1**, **Track A (A1–A3)**, **Track B (B1+B2)**, and
-> **Track C C1** complete and merged to `main` (2026-06-22) — the comparison
-> chart draws the ECMWF (Open-Meteo) line alongside NWS and CAIC with a shaded
-> model-disagreement band, has a Temp/Wind variable toggle, and the AI brief
-> compares all available models in plain language. Remaining: **C2** (optional —
-> Precip/Snow as amounts), to be revisited after C1. This doc is the source of
-> truth for three related upgrades to the temperature/forecast comparison chart
-> and the AI brief. Read this first; each step has a matching copy-paste prompt
-> in the "Session prompts" appendix at the bottom.
+> Status: **✅ COMPLETE.** All tracks done and merged to `main` (2026-06-22):
+> **D1** (AFD → brief), **Track A (A1–A3)** (ECMWF chart line), **Track B
+> (B1+B2)** (disagreement band + model-spread note in the brief), and **Track C
+> (C1+C2)** (Temp/Wind/Precip/Snow variable toggle). One open watch-item:
+> confirm Open-Meteo precip/snow units against live data during the next
+> rain/snow event (CAIC is confirmed inches; see build-log). This doc records
+> the plan and per-step session prompts; the as-built record is in
+> `build-log.md` → "Forecast comparison upgrade".
 >
 > Companion to `CLAUDE.md` (project rules), `v2-overview.md`/`v2-plan.md` (how
 > V1 and V2 share one engine), and `build-log.md` (history).
@@ -197,7 +196,7 @@ at each hour, so you can see at a glance where the forecasts agree vs. diverge.
 
 ---
 
-## 6. Track C — Variable toggle (Temp / Wind / …)  ✅ C1 done (merged to `main` 2026-06-22); C2 pending
+## 6. Track C — Variable toggle (Temp / Wind / …)  ✅ C1 + C2 done (merged to `main` 2026-06-22)
 
 **Goal:** a small segmented control on the chart to switch which variable is
 shown — one at a time, so the chart never gets crowded.
@@ -237,10 +236,18 @@ shown — one at a time, so the chart never gets crowded.
   for the selected variable are skipped (no orphan legend entry). Hourly/7-Day
   toggle unaffected.
 
-- **C2 (optional, later) — Precip & Snow as amounts.**
-  Add Precip and Snow showing **amounts** from Open-Meteo + CAIC, with a clear
-  label that NWS isn't included (or do the extra work to pull NWS gridpoint
-  amounts). Decide scope when we get here.
+- **C2 — Precip & Snow as amounts. ✅ Done (owner verified on mobile, 2026-06-22).**
+  Added Precip and Snow to the toggle, plotted as **amounts in inches** from
+  **CAIC + ECMWF only** — NWS is omitted (its hourly feed gives precip
+  *probability*, not an amount). For these variables `renderOverlayChart` drops
+  the NWS series, anchors the Y-axis at zero, and uses straight segments
+  (`tension: 0`) so a 0→spike→0 curve can't dip into impossible negatives; the
+  disagreement band recomputes from whatever series are drawn. **Units
+  watch-item:** CAIC is confirmed inches (owner's prior looper experience);
+  **Open-Meteo precip/snow units remain to be confirmed against live data** —
+  Open-Meteo sometimes returns snowfall in cm even when inches are requested, so
+  if the ECMWF snow line ever reads ~2.5× high in winter, add a cm→inch
+  conversion in `src/shared/openmeteo.ts`. Low-risk to ship in June (snow ≈ 0).
 
 ---
 
