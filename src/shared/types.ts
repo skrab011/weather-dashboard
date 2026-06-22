@@ -156,6 +156,9 @@ export interface LocationWeather {
 // The two possible forecast views.
 export type ViewMode = "hourly" | "7day";
 
+// Which variable the comparison chart plots (one at a time — see Track C).
+export type ChartVar = "temp" | "wind";
+
 // ---------------------------------------------------------------------------
 // CAIC types — Colorado Avalanche Information Center
 //
@@ -247,6 +250,7 @@ export interface ConsensusBrief {
 export interface AppState {
   activeLocation: 0 | 1;
   activeView: ViewMode;
+  activeChartVar: ChartVar;                  // which variable the chart plots
   weather: Record<string, LocationWeather>; // keyed by Location.id
   caic: CAICZoneData;                        // zone-wide, shared across locations
   tomer: SourceResult<TomerVideo>;           // zone-wide, not per-location

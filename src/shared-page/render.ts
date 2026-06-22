@@ -187,7 +187,7 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
     const caicForChart = loc.inColorado
       ? state.caic.pointForecast
       : { data: null, error: null, lastUpdated: null, lastGoodData: null, lastGoodUpdated: null };
-    renderChart(weather.hourly, caicForChart, nwsElevFt, weather.openMeteo);
+    renderChart(weather.hourly, caicForChart, nwsElevFt, weather.openMeteo, state.activeChartVar, store.setActiveChartVar);
 
     // CO-gated: CAIC weather summary and Tomer video only.
     // Clear their regions when non-CO so no skeleton/stale content lingers.

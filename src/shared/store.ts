@@ -16,6 +16,7 @@
 import type {
   AppState,
   CAICZoneData,
+  ChartVar,
   ConsensusBrief,
   Location,
   LocationAirQuality,
@@ -69,6 +70,7 @@ export interface Store {
   subscribe(fn: () => void): void;
   setActiveLocation(index: number): void;
   setActiveView(view: ViewMode): void;
+  setActiveChartVar(variable: ChartVar): void;
   updateLocationWeather(locationId: string, weather: LocationWeather): void;
   updateCAIC(data: CAICZoneData): void;
   updateTomer(data: SourceResult<TomerVideo>): void;
@@ -86,6 +88,7 @@ export function createStore(locations: Location[]): Store {
   const state: AppState = {
     activeLocation: 0,
     activeView: "hourly",
+    activeChartVar: "temp",
     weather,
     caic:  emptyCAICZoneData(),
     tomer: emptyResult<TomerVideo>(),
@@ -114,6 +117,11 @@ export function createStore(locations: Location[]): Store {
 
     setActiveView(view: ViewMode): void {
       state.activeView = view;
+      notify();
+    },
+
+    setActiveChartVar(variable: ChartVar): void {
+      state.activeChartVar = variable;
       notify();
     },
 

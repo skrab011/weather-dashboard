@@ -34,7 +34,7 @@ import {
 // Filler is needed for the disagreement band's area fill (the lines use fill:false).
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
 
-import type { CAICPointForecastRow, NWSPeriod, OpenMeteoForecast } from "./types";
+import type { CAICPointForecastRow, ChartVar, NWSPeriod, OpenMeteoForecast } from "./types";
 
 // CAIC's point-forecast grid cell sits at a higher elevation than town sites.
 const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
@@ -54,6 +54,15 @@ function modelLabel(model: string): string {
   if (model.startsWith("gfs"))   return "GFS";
   if (model.startsWith("icon"))  return "ICON";
   return model;
+}
+
+// Parse an NWS wind-speed string ("10 mph", "10 to 15 mph") to a number in mph.
+// Averages the values when a range is given; null when no number is present.
+function parseWindMph(s: string): number | null {
+  const nums = s.match(/\d+/g);
+  if (!nums || nums.length === 0) return null;
+  const vals = nums.map(Number);
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
 // Persist the Chart.js instance so we can call destroy() before rebuilding.
@@ -82,6 +91,7 @@ export function renderOverlayChart(
   caicForecast: CAICPointForecastRow[] | null,
   nwsElevFt: number | null,
   openMeteo: OpenMeteoForecast | null,
+  variable: ChartVar,
 ): void {
   // Nothing to draw yet — NWS data still loading
   if (!nwsHourly || nwsHourly.length === 0) {
@@ -90,64 +100,69 @@ export function renderOverlayChart(
     return;
   }
 
+  const isTemp = variable !== "wind";
+
   // Slice to the next 48 hours of hourly periods
   const cutoff   = Date.now() + 48 * 3_600_000;
   const nwsSlice = nwsHourly.filter((p) => new Date(p.startTime).getTime() < cutoff);
 
-  const labels   = nwsSlice.map((p) => fmtHour(p.startTime));
-  const nwsTemps = nwsSlice.map((p) => p.temperature);
+  const labels  = nwsSlice.map((p) => fmtHour(p.startTime));
+  // NWS values for the selected variable (wind is a string that needs parsing).
+  const nwsVals = nwsSlice.map((p) =>
+    isTemp ? p.temperature : parseWindMph(p.windSpeed),
+  );
 
-  // Align CAIC temperatures to NWS timestamps by finding the nearest CAIC row
-  // within a 1.5-hour window. Null when no close match exists.
-  let caicTemps: (number | null)[] | null = null;
-  if (caicForecast && caicForecast.length > 0) {
-    caicTemps = nwsSlice.map((p) => {
+  // Align an external hourly series to the NWS timestamps by nearest match
+  // within a 1.5-hour window. Null where no close match exists.
+  function alignToNws<T extends { dateTime: string }>(
+    rows: T[],
+    getVal: (row: T) => number | null,
+  ): (number | null)[] {
+    return nwsSlice.map((p) => {
       const t = new Date(p.startTime).getTime();
-      let closest: CAICPointForecastRow | null = null;
+      let closest: T | null = null;
       let minDiff = Infinity;
-      for (const row of caicForecast) {
+      for (const row of rows) {
         const diff = Math.abs(new Date(row.dateTime).getTime() - t);
         if (diff < minDiff) { minDiff = diff; closest = row; }
       }
-      return closest && minDiff <= 5_400_000 ? closest.tmpF : null;
+      return closest && minDiff <= 5_400_000 ? getVal(closest) : null;
     });
   }
 
-  // Align Open-Meteo (ECMWF) temperatures to NWS timestamps the same way.
-  // Open-Meteo is hourly on the hour, so matches line up exactly.
-  let omTemps: (number | null)[] | null = null;
-  if (openMeteo && openMeteo.rows.length > 0) {
-    omTemps = nwsSlice.map((p) => {
-      const t = new Date(p.startTime).getTime();
-      let closest: { dateTime: string; tempF: number | null } | null = null;
-      let minDiff = Infinity;
-      for (const row of openMeteo.rows) {
-        const diff = Math.abs(new Date(row.dateTime).getTime() - t);
-        if (diff < minDiff) { minDiff = diff; closest = row; }
-      }
-      return closest && minDiff <= 5_400_000 ? closest.tempF : null;
-    });
-  }
+  const caicVals = caicForecast && caicForecast.length > 0
+    ? alignToNws(caicForecast, (r) => (isTemp ? r.tmpF : r.windSpeedMph))
+    : null;
+
+  const omVals = openMeteo && openMeteo.rows.length > 0
+    ? alignToNws(openMeteo.rows, (r) => (isTemp ? r.tempF : r.windMph))
+    : null;
+
+  // A series may exist but have no values for the selected variable (e.g. CAIC
+  // wind missing) — don't draw an empty line / orphan legend entry in that case.
+  const caicHasData = !!caicVals && caicVals.some((v) => v !== null);
+  const omHasData   = !!omVals && omVals.some((v) => v !== null);
 
   // Destroy the previous chart before touching the canvas
   if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
 
   // (Re-)create a fresh canvas inside the placeholder on every render.
   // This avoids any stale Chart.js state from a previous render cycle.
-  placeholder.innerHTML = `<canvas class="overlay-chart-canvas" aria-label="Temperature forecast comparison chart"></canvas>`;
+  const ariaLabel = isTemp ? "Temperature forecast comparison chart" : "Wind forecast comparison chart";
+  placeholder.innerHTML = `<canvas class="overlay-chart-canvas" aria-label="${ariaLabel}"></canvas>`;
   const canvas = placeholder.querySelector<HTMLCanvasElement>("canvas")!;
 
   const elev = (ft: number) => `${ft.toLocaleString()} ft`;
-  // Show elevation in the label only when ≥ 5,000 ft — elevation matters more
-  // at high altitude where small differences produce meaningful temperature gaps.
-  const nwsLabel = nwsElevFt !== null && nwsElevFt >= 5_000
-    ? `NWS (${elev(nwsElevFt)})`
-    : "NWS Temperature";
+  // Elevation context only makes sense for temperature; for wind use the bare
+  // source name. The elevation label is shown only when ≥ 5,000 ft.
+  const nwsLabel = isTemp
+    ? (nwsElevFt !== null && nwsElevFt >= 5_000 ? `NWS (${elev(nwsElevFt)})` : "NWS Temperature")
+    : "NWS";
 
   const datasets: Chart["data"]["datasets"] = [
     {
       label:           nwsLabel,
-      data:            nwsTemps,
+      data:            nwsVals,
       borderColor:     COLOR_NWS,
       backgroundColor: "rgba(179,157,219,0.07)",
       borderWidth:     2,
@@ -157,11 +172,11 @@ export function renderOverlayChart(
     },
   ];
 
-  // CAIC series — only added when data is available (Phase 2 and beyond)
-  if (caicTemps) {
+  // CAIC series — only added when data is available.
+  if (caicHasData) {
     datasets.push({
-      label:           `CAIC (~${elev(CAIC_ELEV_FT)})`,
-      data:            caicTemps,
+      label:           isTemp ? `CAIC (~${elev(CAIC_ELEV_FT)})` : "CAIC",
+      data:            caicVals!,
       borderColor:     COLOR_CAIC,
       backgroundColor: "rgba(245,158,11,0.07)",
       borderWidth:     2,
@@ -173,14 +188,14 @@ export function renderOverlayChart(
 
   // Open-Meteo (ECMWF) series — only added when data is available.
   // Elevation label uses the same ≥ 5,000 ft threshold as the NWS label.
-  if (omTemps && openMeteo) {
+  if (omHasData && openMeteo) {
     const omName = modelLabel(openMeteo.model);
-    const omLabel = openMeteo.elevationFt !== null && openMeteo.elevationFt >= 5_000
+    const omLabel = isTemp && openMeteo.elevationFt !== null && openMeteo.elevationFt >= 5_000
       ? `${omName} (${elev(Math.round(openMeteo.elevationFt))})`
       : omName;
     datasets.push({
       label:           omLabel,
-      data:            omTemps,
+      data:            omVals!,
       borderColor:     COLOR_OM,
       backgroundColor: "rgba(77,208,225,0.07)",
       borderWidth:     2,
@@ -196,13 +211,13 @@ export function renderOverlayChart(
   // values. The two band datasets are inserted at the front of the array so they
   // render *behind* the lines, and are flagged with a "__" label prefix so they
   // are excluded from the legend and tooltip (see the filters below).
-  const bandSeries: (number | null)[][] = [nwsTemps];
-  if (caicTemps) bandSeries.push(caicTemps);
-  if (omTemps)   bandSeries.push(omTemps);
+  const bandSeries: (number | null)[][] = [nwsVals];
+  if (caicHasData) bandSeries.push(caicVals!);
+  if (omHasData)   bandSeries.push(omVals!);
   if (bandSeries.length >= 2) {
     const bandMax: (number | null)[] = [];
     const bandMin: (number | null)[] = [];
-    for (let i = 0; i < nwsTemps.length; i++) {
+    for (let i = 0; i < nwsVals.length; i++) {
       const vals = bandSeries
         .map((s) => s[i])
         .filter((v): v is number => v !== null && Number.isFinite(v));
@@ -261,7 +276,7 @@ export function renderOverlayChart(
           filter: (item) => !(item.dataset.label ?? "").startsWith("__"),
           callbacks: {
             // Show unit in tooltip so the value is unambiguous
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}°F`,
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}${isTemp ? "°F" : " mph"}`,
           },
         },
       },
@@ -279,12 +294,12 @@ export function renderOverlayChart(
           ticks: {
             color:    COLOR_TICKS,
             font:     { size: 11 },
-            callback: (v) => `${v}°`,
+            callback: (v) => (isTemp ? `${v}°` : `${v}`),
           },
           grid:  { color: COLOR_GRID },
           title: {
             display: true,
-            text:    "Temperature (°F)",
+            text:    isTemp ? "Temperature (°F)" : "Wind speed (mph)",
             color:   COLOR_TICKS,
             font:    { size: 11 },
           },

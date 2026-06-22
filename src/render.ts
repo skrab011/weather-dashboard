@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 
 import { LOCATIONS } from "./locations";
-import { state, setActiveLocation, setActiveView, updateBrief } from "./store";
+import { state, setActiveLocation, setActiveView, setActiveChartVar, updateBrief } from "./store";
 import { fetchBrief } from "./shared/brief";
 import {
   skeletonCard,
@@ -132,7 +132,7 @@ export function renderAll(): void {
   const nwsElevFt = weather.gridpoint.data?.elevationM != null
     ? Math.round(weather.gridpoint.data.elevationM * 3.28084)
     : null;
-  renderChart(weather.hourly, state.caic.pointForecast, nwsElevFt, weather.openMeteo);
+  renderChart(weather.hourly, state.caic.pointForecast, nwsElevFt, weather.openMeteo, state.activeChartVar, setActiveChartVar);
 
   // The brief's manual-refresh button refetches and pushes the result into state.
   // Capture the current brief result so the refresh uses the same value the

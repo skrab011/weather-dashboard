@@ -154,6 +154,32 @@ body {
   color: var(--accent);
 }
 
+/* Compact Temp/Wind segmented control inside the forecast comparison card. */
+.chart-var-toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.chart-var-btn {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.7rem;
+  color: var(--fg-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chart-var-btn--active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* =========================================================================
    Content area & view visibility
    — Both hourly and 7-day cards are always in the DOM.

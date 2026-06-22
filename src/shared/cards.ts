@@ -17,6 +17,7 @@
 import type {
   CAICPointForecastRow,
   CAICWeatherSummary,
+  ChartVar,
   ConsensusBrief,
   LocationAirQuality,
   NWSAlert,
@@ -537,11 +538,12 @@ export function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
 }
 
 // ---------------------------------------------------------------------------
-// Temperature Comparison chart — standalone card.
+// Forecast comparison chart — standalone card.
 //
 // Takes the active location's hourly NWS result, the zone-wide CAIC
-// point-forecast result, the NWS forecast-point elevation, and the active
-// location's Open-Meteo (ECMWF) result. Each series draws independently — any
+// point-forecast result, the NWS forecast-point elevation, the active
+// location's Open-Meteo (ECMWF) result, the selected chart variable, and a
+// callback for the Temp/Wind toggle. Each series draws independently — any
 // source that's missing simply isn't plotted.
 // ---------------------------------------------------------------------------
 export function renderChart(
@@ -549,6 +551,8 @@ export function renderChart(
   pointForecastResult: SourceResult<CAICPointForecastRow[]>,
   nwsElevFt: number | null,
   openMeteoResult: SourceResult<OpenMeteoForecast>,
+  activeVar: ChartVar,
+  onSelectVar: (variable: ChartVar) => void,
 ): void {
   const el = document.getElementById("chart-region")!;
   const nwsHourly = hourlyResult.data ?? hourlyResult.lastGoodData;
@@ -574,17 +578,29 @@ export function renderChart(
 
   const ts = hourlyResult.lastUpdated ?? hourlyResult.lastGoodUpdated;
   const isStale = !!hourlyResult.error && !!hourlyResult.lastGoodData;
+  const title = activeVar === "wind" ? "Wind Forecast" : "Temperature Forecast";
 
   el.innerHTML = `
     <section class="card${isStale ? " card--error" : ""}">
-      <h2 class="card-title">Temperature Forecast</h2>
+      <h2 class="card-title">${title}</h2>
+      <div class="chart-var-toggle" role="group" aria-label="Chart variable">
+        <button class="chart-var-btn${activeVar === "temp" ? " chart-var-btn--active" : ""}" data-chart-var="temp">Temp</button>
+        <button class="chart-var-btn${activeVar === "wind" ? " chart-var-btn--active" : ""}" data-chart-var="wind">Wind</button>
+      </div>
       <div id="caic-chart-placeholder" class="caic-chart-placeholder"></div>
       ${cardFooter(ts, hourlyResult.error)}
     </section>
   `;
 
+  el.querySelectorAll<HTMLButtonElement>(".chart-var-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.dataset.chartVar as ChartVar | undefined;
+      if (v && v !== activeVar) onSelectVar(v);
+    });
+  });
+
   const placeholder = document.getElementById("caic-chart-placeholder")!;
-  renderOverlayChart(placeholder, nwsHourly!, caicFcst, nwsElevFt, omFcst);
+  renderOverlayChart(placeholder, nwsHourly!, caicFcst, nwsElevFt, omFcst, activeVar);
 }
 
 // ---------------------------------------------------------------------------
