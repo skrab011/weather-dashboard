@@ -534,3 +534,35 @@ so the brief does **not** name sources robotically ("the models agree…", not
 attribution would be a one-line prompt change if ever wanted. In calm weather
 the models often agree and the brief only briefly notes it — the divergence
 language earns its keep in unsettled periods. Merged to `main` 2026-06-22.
+
+### Track C (C1) — Temp/Wind variable toggle on the comparison chart ✅ (merged to `main`)
+
+**What & why.** Let the chart show one variable at a time via a small Temp/Wind
+segmented control, starting with the two cleanest variables. Open-Meteo (Track A)
+made this tractable by supplying wind in consistent units alongside CAIC.
+
+**Implementation.**
+- State: new `ChartVar = "temp" | "wind"` and `activeChartVar` on `AppState`
+  (default `"temp"`), with a `setActiveChartVar` setter on the store factory,
+  re-exported from the V1 `src/store.ts` wrapper. Both render wrappers pass
+  `activeChartVar` + the setter into `renderChart`.
+- UI: `renderChart` (in `src/shared/cards.ts`) renders the segmented control in
+  the card and attaches click handlers (re-attached each render, like the brief
+  refresh button). New `.chart-var-toggle` / `.chart-var-btn` /
+  `.chart-var-btn--active` CSS in `src/style.css` — **own classes**, deliberately
+  not the `.toggle-btn` ones, because the existing Hourly/7-Day wiring does a
+  broad `querySelectorAll(".toggle-btn")` that would otherwise capture these
+  buttons. Styling reuses existing design tokens (no new colors).
+- Chart: `renderOverlayChart` takes a `variable` arg and is now variable-aware —
+  a generic `alignToNws()` helper picks each source's field for the selected
+  variable (NWS wind parsed from its `"10 mph"`/`"10 to 15 mph"` string, averaged
+  on a range; CAIC `windSpeedMph`; ECMWF `windMph`); the Y-axis title/units,
+  tooltip unit, series labels (elevation for temp only), `aria-label`, and the
+  disagreement band all switch with the variable. `caicHasData`/`omHasData`
+  guards skip a source that has no values for the chosen variable so there's no
+  orphan legend entry.
+
+**Watch-items.** NWS wind ranges are averaged to a single value (deliberate
+simplification). Verified on mobile (V1); desktop spot-check deferred (owner away
+from desktop) — additive change, Temp view identical to prior production. Merged
+to `main` 2026-06-22. **C2 (Precip/Snow as amounts) deferred** — to revisit.

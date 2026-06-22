@@ -1,13 +1,14 @@
 # Forecast Comparison Upgrade — Build Plan
 
-> Status: **in progress.** **D1**, **Track A (A1–A3)**, and **Track B (B1+B2)**
-> complete and merged to `main` (2026-06-22) — the comparison chart draws the
-> ECMWF (Open-Meteo) line alongside NWS and CAIC with a shaded
-> model-disagreement band, and the AI brief now compares all available models
-> in plain language. Next up: Track C (variable toggle). This doc is the source
-> of truth for three related upgrades to the temperature/forecast comparison
-> chart and the AI brief. Read this first; each step has a matching copy-paste
-> prompt in the "Session prompts" appendix at the bottom.
+> Status: **in progress.** **D1**, **Track A (A1–A3)**, **Track B (B1+B2)**, and
+> **Track C C1** complete and merged to `main` (2026-06-22) — the comparison
+> chart draws the ECMWF (Open-Meteo) line alongside NWS and CAIC with a shaded
+> model-disagreement band, has a Temp/Wind variable toggle, and the AI brief
+> compares all available models in plain language. Remaining: **C2** (optional —
+> Precip/Snow as amounts), to be revisited after C1. This doc is the source of
+> truth for three related upgrades to the temperature/forecast comparison chart
+> and the AI brief. Read this first; each step has a matching copy-paste prompt
+> in the "Session prompts" appendix at the bottom.
 >
 > Companion to `CLAUDE.md` (project rules), `v2-overview.md`/`v2-plan.md` (how
 > V1 and V2 share one engine), and `build-log.md` (history).
@@ -196,7 +197,7 @@ at each hour, so you can see at a glance where the forecasts agree vs. diverge.
 
 ---
 
-## 6. Track C — Variable toggle (Temp / Wind / …)
+## 6. Track C — Variable toggle (Temp / Wind / …)  ✅ C1 done (merged to `main` 2026-06-22); C2 pending
 
 **Goal:** a small segmented control on the chart to switch which variable is
 shown — one at a time, so the chart never gets crowded.
@@ -223,13 +224,18 @@ shown — one at a time, so the chart never gets crowded.
 
 ### Steps
 
-- **C1 — Toggle UI + Temp/Wind only.**
-  Add the segmented control (reuse the existing view-toggle styling — no new
-  colors). Implement **Temp** and **Wind**. Parse NWS `windSpeed` strings; use
-  Open-Meteo `windMph` and CAIC `windSpeedMph`. Switch Y-axis label/units with
-  the selection.
-  *Verify:* toggling Temp↔Wind redraws correctly on V1 (3 series) and V2; units
-  and legend update; the existing Hourly/7-Day toggle still works.
+- **C1 — Toggle UI + Temp/Wind only. ✅ Done (owner verified on mobile, 2026-06-22).**
+  Added a compact segmented Temp/Wind control to the chart card with new
+  `.chart-var-*` classes (own classes, not the `.toggle-btn` ones, to avoid
+  colliding with the Hourly/7-Day wiring; styling reuses the design tokens — no
+  new colors). New `activeChartVar` state (`ChartVar = "temp" | "wind"`) +
+  `setActiveChartVar`, wired through both render wrappers. `renderOverlayChart`
+  is variable-aware: NWS wind parsed from its `"10 mph"`/`"10 to 15 mph"` string
+  (range → average), CAIC `windSpeedMph`, ECMWF `windMph`; Y-axis title/units,
+  tooltip unit, and series labels switch (elevation shown for temp only); the
+  disagreement band recomputes for the active variable. Series with no values
+  for the selected variable are skipped (no orphan legend entry). Hourly/7-Day
+  toggle unaffected.
 
 - **C2 (optional, later) — Precip & Snow as amounts.**
   Add Precip and Snow showing **amounts** from Open-Meteo + CAIC, with a clear
