@@ -22,6 +22,7 @@ import type {
   NWSAlert,
   NWSGridpoint,
   NWSPeriod,
+  OpenMeteoForecast,
   SourceResult,
   SunTimes,
   TomerVideo,
@@ -536,19 +537,23 @@ export function renderCAIC(result: SourceResult<CAICWeatherSummary>): void {
 }
 
 // ---------------------------------------------------------------------------
-// NWS/CAIC Temperature Comparison chart — standalone card.
+// Temperature Comparison chart — standalone card.
 //
 // Takes the active location's hourly NWS result, the zone-wide CAIC
-// point-forecast result, and the active location id (for the elevation label).
+// point-forecast result, the NWS forecast-point elevation, and the active
+// location's Open-Meteo (ECMWF) result. Each series draws independently — any
+// source that's missing simply isn't plotted.
 // ---------------------------------------------------------------------------
 export function renderChart(
   hourlyResult: SourceResult<NWSPeriod[]>,
   pointForecastResult: SourceResult<CAICPointForecastRow[]>,
   nwsElevFt: number | null,
+  openMeteoResult: SourceResult<OpenMeteoForecast>,
 ): void {
   const el = document.getElementById("chart-region")!;
   const nwsHourly = hourlyResult.data ?? hourlyResult.lastGoodData;
   const caicFcst  = pointForecastResult.data ?? pointForecastResult.lastGoodData;
+  const omFcst    = openMeteoResult.data ?? openMeteoResult.lastGoodData;
 
   // Loading state — NWS hourly not yet resolved
   if (!nwsHourly && !hourlyResult.error) {
@@ -579,7 +584,7 @@ export function renderChart(
   `;
 
   const placeholder = document.getElementById("caic-chart-placeholder")!;
-  renderOverlayChart(placeholder, nwsHourly!, caicFcst, nwsElevFt);
+  renderOverlayChart(placeholder, nwsHourly!, caicFcst, nwsElevFt, omFcst);
 }
 
 // ---------------------------------------------------------------------------

@@ -132,7 +132,7 @@ export function renderAll(): void {
   const nwsElevFt = weather.gridpoint.data?.elevationM != null
     ? Math.round(weather.gridpoint.data.elevationM * 3.28084)
     : null;
-  renderChart(weather.hourly, state.caic.pointForecast, nwsElevFt);
+  renderChart(weather.hourly, state.caic.pointForecast, nwsElevFt, weather.openMeteo);
 
   // The brief's manual-refresh button refetches and pushes the result into state.
   // Capture the current brief result so the refresh uses the same value the

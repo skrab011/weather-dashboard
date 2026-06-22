@@ -32,7 +32,7 @@ import {
 // importing the full Chart.js library via the "auto" import.
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend);
 
-import type { CAICPointForecastRow, NWSPeriod } from "./types";
+import type { CAICPointForecastRow, NWSPeriod, OpenMeteoForecast } from "./types";
 
 // CAIC's point-forecast grid cell sits at a higher elevation than town sites.
 const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
@@ -40,9 +40,18 @@ const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
 // Design-system colours — must match style.css custom properties.
 const COLOR_NWS   = "#b39ddb"; // --accent (lavender)
 const COLOR_CAIC  = "#f59e0b"; // --warn
+const COLOR_OM    = "#4dd0e1"; // cyan/teal — ECMWF / Open-Meteo, distinct from the above
 const COLOR_GRID  = "#252a38"; // --border
 const COLOR_TICKS = "#6b7280"; // --muted
 const COLOR_LEGEND = "#9aa3b2"; // --fg-secondary
+
+// Friendly label for an Open-Meteo model id (e.g. "ecmwf_ifs025" → "ECMWF").
+function modelLabel(model: string): string {
+  if (model.startsWith("ecmwf")) return "ECMWF";
+  if (model.startsWith("gfs"))   return "GFS";
+  if (model.startsWith("icon"))  return "ICON";
+  return model;
+}
 
 // Persist the Chart.js instance so we can call destroy() before rebuilding.
 // Chart.js throws if you create a second chart on the same canvas element.
@@ -69,6 +78,7 @@ export function renderOverlayChart(
   nwsHourly: NWSPeriod[] | null,
   caicForecast: CAICPointForecastRow[] | null,
   nwsElevFt: number | null,
+  openMeteo: OpenMeteoForecast | null,
 ): void {
   // Nothing to draw yet — NWS data still loading
   if (!nwsHourly || nwsHourly.length === 0) {
@@ -97,6 +107,22 @@ export function renderOverlayChart(
         if (diff < minDiff) { minDiff = diff; closest = row; }
       }
       return closest && minDiff <= 5_400_000 ? closest.tmpF : null;
+    });
+  }
+
+  // Align Open-Meteo (ECMWF) temperatures to NWS timestamps the same way.
+  // Open-Meteo is hourly on the hour, so matches line up exactly.
+  let omTemps: (number | null)[] | null = null;
+  if (openMeteo && openMeteo.rows.length > 0) {
+    omTemps = nwsSlice.map((p) => {
+      const t = new Date(p.startTime).getTime();
+      let closest: { dateTime: string; tempF: number | null } | null = null;
+      let minDiff = Infinity;
+      for (const row of openMeteo.rows) {
+        const diff = Math.abs(new Date(row.dateTime).getTime() - t);
+        if (diff < minDiff) { minDiff = diff; closest = row; }
+      }
+      return closest && minDiff <= 5_400_000 ? closest.tempF : null;
     });
   }
 
@@ -135,6 +161,25 @@ export function renderOverlayChart(
       data:            caicTemps,
       borderColor:     COLOR_CAIC,
       backgroundColor: "rgba(245,158,11,0.07)",
+      borderWidth:     2,
+      pointRadius:     0,
+      tension:         0.3,
+      fill:            false,
+    });
+  }
+
+  // Open-Meteo (ECMWF) series — only added when data is available.
+  // Elevation label uses the same ≥ 5,000 ft threshold as the NWS label.
+  if (omTemps && openMeteo) {
+    const omName = modelLabel(openMeteo.model);
+    const omLabel = openMeteo.elevationFt !== null && openMeteo.elevationFt >= 5_000
+      ? `${omName} (${elev(Math.round(openMeteo.elevationFt))})`
+      : omName;
+    datasets.push({
+      label:           omLabel,
+      data:            omTemps,
+      borderColor:     COLOR_OM,
+      backgroundColor: "rgba(77,208,225,0.07)",
       borderWidth:     2,
       pointRadius:     0,
       tension:         0.3,
