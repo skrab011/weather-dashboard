@@ -1,13 +1,13 @@
 # Forecast Comparison Upgrade — Build Plan
 
-> Status: **in progress.** **D1**, **Track A (A1–A3)**, and **Track B B1**
+> Status: **in progress.** **D1**, **Track A (A1–A3)**, and **Track B (B1+B2)**
 > complete and merged to `main` (2026-06-22) — the comparison chart draws the
-> ECMWF (Open-Meteo) line alongside NWS and CAIC, with a shaded
-> model-disagreement band behind the lines. Next up: B2 (plain-language spread
-> note, folded into the brief) and/or Track C (variable toggle). This doc is the
-> source of truth for three related upgrades to the temperature/forecast
-> comparison chart and the AI brief. Read this first; each step has a matching
-> copy-paste prompt in the "Session prompts" appendix at the bottom.
+> ECMWF (Open-Meteo) line alongside NWS and CAIC with a shaded
+> model-disagreement band, and the AI brief now compares all available models
+> in plain language. Next up: Track C (variable toggle). This doc is the source
+> of truth for three related upgrades to the temperature/forecast comparison
+> chart and the AI brief. Read this first; each step has a matching copy-paste
+> prompt in the "Session prompts" appendix at the bottom.
 >
 > Companion to `CLAUDE.md` (project rules), `v2-overview.md`/`v2-plan.md` (how
 > V1 and V2 share one engine), and `build-log.md` (history).
@@ -183,11 +183,16 @@ at each hour, so you can see at a glance where the forecasts agree vs. diverge.
   *Verify:* visual — band is wide where lines diverge, pinched where they agree;
   doesn't clutter; still clean on mobile.
 
-- **B2 (optional) — One-line plain-language spread note.**
-  Compute a simple summary ("Models agree closely through Thu, then split on the
-  weekend") and either show it as a small caption under the chart **or** feed it
-  into the brief (cleaner — no new UI). Recommend folding into the brief, which
-  pairs naturally with Track D.
+- **B2 — Plain-language spread note, folded into the brief. ✅ Done (option 1, owner verified, 2026-06-22).**
+  Chose the brief-based option over a chart caption (cleaner UI, natural
+  language). Implemented in `api/brief.ts`: a self-contained, non-throwing
+  server-side `fetchOpenMeteo(lat, lon)` returns a compact next-48h ECMWF hourly
+  temperature listing (Mountain-time labels to match the NWS block), fetched for
+  every location; both prompts now include it and instruct Claude to compare
+  NWS / CAIC / ECMWF (CO) or NWS / ECMWF (non-CO) and call out agreement vs.
+  divergence in flowing prose. By design the brief does **not** name the sources
+  robotically — it keeps plain-language phrasing ("the models agree…"); a
+  one-line prompt tweak could make attribution explicit if ever wanted.
 
 ---
 

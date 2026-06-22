@@ -59,7 +59,7 @@ Priority order for tradeoffs:
 
 ### Overlay chart + consensus brief
 - Chart: NWS + CAIC + ECMWF (Open-Meteo) temperatures on shared axes, elevation labeled for each series. NWS elevation: ~9,035 ft; CAIC elevation: 9,219 ft; ECMWF elevation from the live Open-Meteo grid cell. (ECMWF line added 2026-06-22 — Track A.)
-- Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC + the latest NWS Area Forecast Discussion (AFD), returns 3–5 sentence plain-prose summary with forecaster jargon translated to plain language. Cached in Vercel Blob. Manual refresh button on the card. (AFD added 2026-06-22 — see "Forecast comparison upgrade" below and `forecast-upgrade-plan.md`.)
+- Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC + the latest NWS Area Forecast Discussion (AFD) + ECMWF (Open-Meteo) hourly temps, returns 3–5 sentence plain-prose summary with forecaster jargon translated to plain language and a plain-language note on where the models agree/diverge. Cached in Vercel Blob. Manual refresh button on the card. (AFD + ECMWF added 2026-06-22 — see "Forecast comparison upgrade" below and `forecast-upgrade-plan.md`.)
 
 ## API keys (all provisioned)
 
@@ -178,6 +178,7 @@ A multi-step epic to make the forecast comparison chart + AI brief more useful o
 - ✅ **D1 done (merged to `main` 2026-06-22):** AFD folded into both brief prompts. See `build-log.md` → "Forecast comparison upgrade".
 - ✅ **Track A (A1–A3) done (merged to `main` 2026-06-22):** ECMWF (Open-Meteo) drawn as a third line on the comparison chart (cyan), per location, alongside NWS + CAIC. New `src/shared/openmeteo.ts`; `openMeteo` field on `LocationWeather`. Non-CO V2 locations now show NWS + ECMWF. Wind/precip/snow are fetched but not yet drawn (await Track C). See `build-log.md`.
 - ✅ **Track B (B1) done (merged to `main` 2026-06-22):** shaded model-disagreement band behind the chart lines (per-hour min/max spread, drawn when ≥2 series present). Hidden helper datasets via `"__"`-prefixed labels + legend/tooltip filters; required registering Chart.js `Filler`. Band fill opacity 0.22. See `build-log.md`.
+- ✅ **Track B (B2) done (merged to `main` 2026-06-22):** the AI brief now also ingests ECMWF (server-side `fetchOpenMeteo` in `api/brief.ts`, fetched for every location) and compares NWS / CAIC / ECMWF (CO) or NWS / ECMWF (non-CO) in plain prose. By design it doesn't name sources robotically. See `build-log.md`.
 
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.

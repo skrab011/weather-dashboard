@@ -509,3 +509,28 @@ glance — turning the chart from "pretty" into "tells you when to trust it".
 **Tuning.** Initial fill opacity `0.13` read too light on the owner's preview;
 bumped to `0.22` (still subtle background, not a fourth line). Owner verified.
 Merged to `main` 2026-06-22.
+
+### Track B (B2) — model-spread note folded into the AI brief ✅ (merged to `main`)
+
+**What & why.** B1 made disagreement visible *on the chart*; B2 makes it
+*readable* in the brief. Chosen over a chart caption (owner picked option 1) to
+keep the chart clean and let Claude phrase the spread naturally. Also upgrades
+non-CO V2 briefs, which previously summarized NWS alone, into a real two-model
+(NWS vs. ECMWF) comparison.
+
+**Implementation (all in `api/brief.ts`, self-contained).**
+- New non-throwing `fetchOpenMeteo(lat, lon)` (keyless) returns a compact
+  next-48h ECMWF hourly temperature listing, labeled in `America/Denver` to
+  match the existing NWS hourly block so Claude compares matching timestamps;
+  `"Unavailable"` on any failure. Fetched for **every** location (ECMWF is
+  global) in the same `Promise.all` as NWS/CAIC.
+- Injected into both prompt variants with updated instructions: compare NWS /
+  CAIC / ECMWF (CO) or NWS / ECMWF (non-CO) and call out agreement vs.
+  divergence.
+
+**Note (expected behavior).** The prompt keeps "flowing prose, plain language,"
+so the brief does **not** name sources robotically ("the models agree…", not
+"NWS says X, ECMWF says Y"). Owner confirmed this reads well; explicit
+attribution would be a one-line prompt change if ever wanted. In calm weather
+the models often agree and the brief only briefly notes it — the divergence
+language earns its keep in unsettled periods. Merged to `main` 2026-06-22.
