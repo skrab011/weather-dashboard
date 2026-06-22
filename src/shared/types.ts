@@ -150,6 +150,7 @@ export interface LocationWeather {
   alerts:     SourceResult<NWSAlert[]>;
   sunTimes:   SunTimes | null;        // calculated locally, always available
   airQuality: SourceResult<LocationAirQuality>;
+  openMeteo:  SourceResult<OpenMeteoForecast>; // extra global model(s) for the chart
 }
 
 // The two possible forecast views.

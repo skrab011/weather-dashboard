@@ -18,6 +18,7 @@ import "./style.css";
 import "./shared-page/style.css";
 import { fetchPoints, fetchAllForLocation } from "./shared/nws";
 import { fetchAirQuality } from "./shared/airQuality";
+import { fetchOpenMeteoResult } from "./shared/openmeteo";
 import { fetchCAIC } from "./shared/caic";
 import { fetchTomer } from "./shared/tomer";
 import { fetchBrief } from "./shared/brief";
@@ -94,14 +95,21 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
     const sunTimes = calcSunTimes(loc.lat, loc.lon, new Date());
     store.updateLocationWeather(loc.id, { ...store.state.weather[loc.id], sunTimes });
 
-    const [nwsOutcome, aqResult] = await Promise.allSettled([
+    const [nwsOutcome, aqResult, omResult] = await Promise.allSettled([
       (async () => {
         const meta = await fetchPoints(loc.lat, loc.lon);
         return fetchAllForLocation(loc, meta, store.state.weather[loc.id]);
       })(),
       // Show PA temp when sensors exist within 4 miles; API returns tempF: null otherwise.
       fetchAirQuality(loc.lat, loc.lon, { showTemp: true }, store.state.weather[loc.id].airQuality),
+      // Open-Meteo (ECMWF) for the chart — never throws (returns a SourceResult)
+      fetchOpenMeteoResult(loc.lat, loc.lon, store.state.weather[loc.id].openMeteo),
     ]);
+
+    // fetchOpenMeteoResult never rejects, but allSettled types it as settled.
+    const openMeteo = omResult.status === "fulfilled"
+      ? omResult.value
+      : store.state.weather[loc.id].openMeteo;
 
     if (nwsOutcome.status === "fulfilled") {
       store.updateLocationWeather(loc.id, {
@@ -110,6 +118,7 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
         airQuality: aqResult.status === "fulfilled"
           ? aqResult.value
           : store.state.weather[loc.id].airQuality,
+        openMeteo,
       });
     } else {
       const errMsg = nwsOutcome.reason instanceof Error ? nwsOutcome.reason.message : "Could not reach NWS";
@@ -123,6 +132,7 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
         airQuality: aqResult.status === "fulfilled"
           ? aqResult.value
           : store.state.weather[loc.id].airQuality,
+        openMeteo,
       });
     }
 

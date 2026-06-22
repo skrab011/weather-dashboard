@@ -14,6 +14,7 @@ import "./style.css";
 import { LOCATIONS } from "./locations";
 import { fetchPoints, fetchAllForLocation } from "./shared/nws";
 import { fetchAirQuality } from "./shared/airQuality";
+import { fetchOpenMeteoResult } from "./shared/openmeteo";
 import { fetchCAIC } from "./shared/caic";
 import { fetchTomer } from "./shared/tomer";
 import { fetchBrief } from "./shared/brief";
@@ -51,14 +52,21 @@ async function boot(): Promise<void> {
       // NWS and air quality fetches run in parallel for each location
       const locId = loc.id as "home" | "office";
 
-      const [nwsOutcome, aqResult] = await Promise.allSettled([
+      const [nwsOutcome, aqResult, omResult] = await Promise.allSettled([
         // NWS: /points first, then all four endpoints
         (async () => {
           const meta = await fetchPoints(loc.lat, loc.lon);
           return fetchAllForLocation(loc, meta, state.weather[loc.id]);
         })(),
         fetchAirQuality(locId, state.weather[loc.id].airQuality),
+        // Open-Meteo (ECMWF) for the chart — never throws (returns a SourceResult)
+        fetchOpenMeteoResult(loc.lat, loc.lon, state.weather[loc.id].openMeteo),
       ]);
+
+      // fetchOpenMeteoResult never rejects, but allSettled types it as settled.
+      const openMeteo = omResult.status === "fulfilled"
+        ? omResult.value
+        : state.weather[loc.id].openMeteo;
 
       // Build the merged LocationWeather, carrying the already-set sunTimes
       if (nwsOutcome.status === "fulfilled") {
@@ -68,6 +76,7 @@ async function boot(): Promise<void> {
           airQuality: aqResult.status === "fulfilled"
             ? aqResult.value
             : state.weather[loc.id].airQuality,
+          openMeteo,
         });
       } else {
         // /points (or subsequent NWS calls) failed — mark NWS as errored
@@ -92,6 +101,8 @@ async function boot(): Promise<void> {
           airQuality: aqResult.status === "fulfilled"
             ? aqResult.value
             : state.weather[loc.id].airQuality,
+          // Open-Meteo is independent too — keep its result even if NWS failed
+          openMeteo,
         });
       }
 

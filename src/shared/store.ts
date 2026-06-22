@@ -23,6 +23,7 @@ import type {
   NWSAlert,
   NWSGridpoint,
   NWSPeriod,
+  OpenMeteoForecast,
   SourceResult,
   TomerVideo,
   ViewMode,
@@ -49,6 +50,7 @@ function emptyLocationWeather(): LocationWeather {
     alerts:     emptyResult<NWSAlert[]>(),
     sunTimes:   null,
     airQuality: emptyResult<LocationAirQuality>(),
+    openMeteo:  emptyResult<OpenMeteoForecast>(),
   };
 }
 

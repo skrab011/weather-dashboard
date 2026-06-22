@@ -21,7 +21,7 @@
 // call limit at personal/family scale.
 // ---------------------------------------------------------------------------
 
-import type { OpenMeteoForecast, OpenMeteoRow } from "./types";
+import type { OpenMeteoForecast, OpenMeteoRow, SourceResult } from "./types";
 
 const OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast";
 
@@ -99,4 +99,32 @@ export async function fetchOpenMeteo(lat: number, lon: number): Promise<OpenMete
     typeof json.elevation === "number" ? json.elevation * METERS_TO_FEET : null;
 
   return { model: OPEN_METEO_MODEL, elevationFt, rows };
+}
+
+// ---------------------------------------------------------------------------
+// Failure-isolation wrapper — mirrors settle() in nws.ts.
+//
+// Fetches one model and returns a SourceResult, never throwing: on error it
+// preserves the previous good data so a transient Open-Meteo outage leaves the
+// last forecast on the chart rather than dropping the line. The boot files call
+// this in parallel with the NWS + air-quality fetches.
+// ---------------------------------------------------------------------------
+export async function fetchOpenMeteoResult(
+  lat: number,
+  lon: number,
+  prev: SourceResult<OpenMeteoForecast>,
+): Promise<SourceResult<OpenMeteoForecast>> {
+  try {
+    const data = await fetchOpenMeteo(lat, lon);
+    const now = new Date();
+    return { data, error: null, lastUpdated: now, lastGoodData: data, lastGoodUpdated: now };
+  } catch (err) {
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : String(err),
+      lastUpdated: null,
+      lastGoodData: prev.lastGoodData,
+      lastGoodUpdated: prev.lastGoodUpdated,
+    };
+  }
 }
