@@ -223,6 +223,44 @@ async function fetchCAIC(lat: number, lon: number): Promise<{ summary: string; p
 }
 
 // ---------------------------------------------------------------------------
+// Open-Meteo (ECMWF) data fetch — server side, for the brief's multi-model
+// comparison. Keyless, self-contained, non-throwing. Returns a compact hourly
+// temperature listing (next 48h) labeled in Mountain time to match the NWS
+// hourly block so Claude can compare matching timestamps, or "Unavailable".
+// ---------------------------------------------------------------------------
+async function fetchOpenMeteo(lat: number, lon: number): Promise<string> {
+  try {
+    const params = new URLSearchParams({
+      latitude: String(lat),
+      longitude: String(lon),
+      hourly: "temperature_2m",
+      temperature_unit: "fahrenheit",
+      timeformat: "unixtime",
+      forecast_days: "3",
+      models: "ecmwf_ifs025",
+    });
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, { signal: AbortSignal.timeout(8_000) });
+    if (!r.ok) return "Unavailable";
+    const j = await r.json() as { hourly?: { time?: number[]; temperature_2m?: (number | null)[] } };
+    const times = j.hourly?.time;
+    const temps = j.hourly?.temperature_2m;
+    if (!Array.isArray(times) || !Array.isArray(temps)) return "Unavailable";
+
+    const cutoff = Date.now() + 48 * 3_600_000;
+    const lines = times
+      .map((unixSec, i) => ({ ms: unixSec * 1000, tmp: temps[i] }))
+      .filter(({ ms }) => ms < cutoff)
+      .map(({ ms, tmp }) => {
+        const t = new Date(ms).toLocaleString("en-US", { weekday: "short", hour: "numeric", timeZone: "America/Denver" });
+        return `${t}: ${tmp !== null && tmp !== undefined ? Math.round(tmp) + "°F" : "?"}`;
+      });
+    return lines.length > 0 ? lines.join("\n") : "Unavailable";
+  } catch {
+    return "Unavailable";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Generate brief via Claude Haiku
 // ---------------------------------------------------------------------------
 async function generateBrief(lat: number, lon: number, inColorado: boolean): Promise<BriefResult> {
@@ -234,15 +272,17 @@ async function generateBrief(lat: number, lon: number, inColorado: boolean): Pro
   const caicPromise = inColorado
     ? fetchCAIC(lat, lon).catch(() => ({ summary: "Unavailable", pointForecast: "Unavailable" }))
     : Promise.resolve(null);
+  // ECMWF (European model) for every location — the brief's second/third opinion.
+  const omPromise = fetchOpenMeteo(lat, lon);
 
-  const [nws, caic] = await Promise.all([nwsPromise, caicPromise]);
+  const [nws, caic, openMeteo] = await Promise.all([nwsPromise, caicPromise, omPromise]);
 
   // co=true  → NWS + CAIC consensus brief (Colorado mountain locations)
   // co=false → NWS-only forecast brief (non-Colorado locations)
   const prompt = caic
     ? `You are a concise weather forecaster for a Colorado mountain location.
 
-Summarize the forecasts below in 3–5 plain-language sentences. Focus on where NWS and CAIC agree, and note any meaningful differences. Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
+Summarize the forecasts below in 3–5 plain-language sentences. Focus on where the forecasts (NWS, CAIC, and the European ECMWF model) agree, and call out any meaningful disagreement — for example if a model runs notably warmer or colder, or times a change differently. Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
 
 NWS ACTIVE ALERTS:
 ${nws.alerts}
@@ -260,10 +300,13 @@ CAIC WEATHER SUMMARY:
 ${caic.summary}
 
 CAIC POINT FORECAST (next 48h):
-${caic.pointForecast}`
+${caic.pointForecast}
+
+ECMWF (EUROPEAN MODEL) HOURLY TEMPERATURE (next 48h):
+${openMeteo}`
     : `You are a concise weather forecaster.
 
-Summarize the forecast below in 3–5 plain-language sentences. Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
+Summarize the forecast below in 3–5 plain-language sentences, comparing the NWS forecast with the European ECMWF model — note where they agree and call out any notable differences (e.g. one running warmer/colder or timing a change differently). Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
 
 NWS ACTIVE ALERTS:
 ${nws.alerts}
@@ -275,7 +318,10 @@ NWS 7-DAY FORECAST:
 ${nws.sevenDay}
 
 NWS FORECASTER DISCUSSION (Area Forecast Discussion):
-${nws.afd}`;
+${nws.afd}
+
+ECMWF (EUROPEAN MODEL) HOURLY TEMPERATURE (next 48h):
+${openMeteo}`;
 
   const aiRes = await fetch(ANTHROPIC_API, {
     method: "POST",
