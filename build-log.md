@@ -609,3 +609,28 @@ after owner sign-off:
 
 Open follow-up: confirm Open-Meteo precip/snow units (above) during the next
 precipitation/snow event.
+
+### Track A (A4) — GFS (American model) added ✅ (merged to `main`)
+
+**What & why.** Added GFS alongside ECMWF so the chart and brief carry both the
+European and American global models (plus NWS and, in CO, CAIC). For non-CO V2
+locations this means three independent lines (NWS + ECMWF + GFS).
+
+**Implementation.**
+- `src/shared/openmeteo.ts`: `OPEN_METEO_MODELS = ["ecmwf_ifs025", "gfs_seamless"]`.
+  Fetch **one request per model** (not a combined multi-model request) so each
+  keeps its own clean grid elevation; `fetchOpenMeteo` returns
+  `OpenMeteoForecast[]` (the models that succeeded; throws only if all fail).
+  `LocationWeather.openMeteo` is now `SourceResult<OpenMeteoForecast[]>`.
+- `src/shared/chart.ts`: draws one line per model in a loop (ECMWF cyan
+  `#4dd0e1`, GFS green `#81c784` via `modelColor()`); a `drawnSeries` list feeds
+  the disagreement band so it spans every line present. Added an `rgba()` helper
+  for consistent faint legend-box fills.
+- `api/brief.ts`: server-side fetch parameterized by model
+  (`fetchOpenMeteoModel`), called for both ECMWF and GFS; both injected into the
+  prompts; instructions updated to compare NWS/CAIC/ECMWF/GFS (CO) or
+  NWS/ECMWF/GFS (non-CO).
+
+**Note.** Four lines + band on V1 (temp) is about the clutter ceiling for the
+"clean UI" priority — adding more models later (ICON, etc.) should be weighed
+against that. Verified on mobile; merged to `main` 2026-06-22.

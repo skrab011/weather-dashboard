@@ -158,9 +158,15 @@ calls, so it follows the same pattern as NWS — no serverless proxy needed).
   ECMWF). On V2 non-CO location: two lines (NWS, ECMWF) — this is the payoff for
   outside Colorado. Confirm V1 still looks right and the legend is readable.
 
-**Optional A4 (later):** add a second model (GFS) by extending the `models=`
-param — Open-Meteo can return several models in one call. Hold until B/C land so
-we don't crowd the chart.
+- **A4 — Add GFS (American model). ✅ Done (owner verified on mobile, 2026-06-22).**
+  Done after C. The Open-Meteo layer now fetches multiple models (one request
+  per model so each keeps its own grid elevation) and returns
+  `OpenMeteoForecast[]`; `LocationWeather.openMeteo` is a
+  `SourceResult<OpenMeteoForecast[]>`. The chart draws one line per model via a
+  loop (ECMWF cyan, GFS green) and the disagreement band spans every drawn
+  series. GFS was also folded into the **brief** (server-side `fetchOpenMeteoModel`
+  called for both ECMWF + GFS) so the written summary reflects the same models.
+  Add ICON etc. later by extending `OPEN_METEO_MODELS` in `openmeteo.ts`.
 
 ---
 
