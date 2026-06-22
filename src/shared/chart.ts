@@ -26,11 +26,13 @@ import {
   CategoryScale,
   Tooltip,
   Legend,
+  Filler,
 } from "chart.js";
 
 // Register only the components we use — keeps the bundle smaller than
 // importing the full Chart.js library via the "auto" import.
-Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend);
+// Filler is needed for the disagreement band's area fill (the lines use fill:false).
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
 
 import type { CAICPointForecastRow, NWSPeriod, OpenMeteoForecast } from "./types";
 
@@ -41,6 +43,7 @@ const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
 const COLOR_NWS   = "#b39ddb"; // --accent (lavender)
 const COLOR_CAIC  = "#f59e0b"; // --warn
 const COLOR_OM    = "#4dd0e1"; // cyan/teal — ECMWF / Open-Meteo, distinct from the above
+const COLOR_BAND  = "rgba(154,163,178,0.13)"; // faint neutral — model-disagreement band
 const COLOR_GRID  = "#252a38"; // --border
 const COLOR_TICKS = "#6b7280"; // --muted
 const COLOR_LEGEND = "#9aa3b2"; // --fg-secondary
@@ -187,6 +190,54 @@ export function renderOverlayChart(
     });
   }
 
+  // Disagreement band — shade the spread between the available model lines so
+  // it's easy to see where they agree (pinched) vs. diverge (wide). Drawn only
+  // when ≥2 series are present; computed per hour from that hour's non-null
+  // values. The two band datasets are inserted at the front of the array so they
+  // render *behind* the lines, and are flagged with a "__" label prefix so they
+  // are excluded from the legend and tooltip (see the filters below).
+  const bandSeries: (number | null)[][] = [nwsTemps];
+  if (caicTemps) bandSeries.push(caicTemps);
+  if (omTemps)   bandSeries.push(omTemps);
+  if (bandSeries.length >= 2) {
+    const bandMax: (number | null)[] = [];
+    const bandMin: (number | null)[] = [];
+    for (let i = 0; i < nwsTemps.length; i++) {
+      const vals = bandSeries
+        .map((s) => s[i])
+        .filter((v): v is number => v !== null && Number.isFinite(v));
+      if (vals.length >= 2) {
+        bandMax.push(Math.max(...vals));
+        bandMin.push(Math.min(...vals));
+      } else {
+        bandMax.push(null);
+        bandMin.push(null);
+      }
+    }
+    // Order matters: max first (fills down to min at relative index +1), min
+    // second. unshift in reverse so the final order is [max, min, ...lines].
+    datasets.unshift({
+      label:           "__band_min",
+      data:            bandMin,
+      borderColor:     "transparent",
+      backgroundColor: "transparent",
+      borderWidth:     0,
+      pointRadius:     0,
+      tension:         0.3,
+      fill:            false,
+    });
+    datasets.unshift({
+      label:           "__band_max",
+      data:            bandMax,
+      borderColor:     "transparent",
+      backgroundColor: COLOR_BAND,
+      borderWidth:     0,
+      pointRadius:     0,
+      tension:         0.3,
+      fill:            "+1", // fill the area down to the min dataset
+    });
+  }
+
   chartInstance = new Chart(canvas, {
     type: "line",
     data: { labels, datasets },
@@ -201,9 +252,13 @@ export function renderOverlayChart(
             color:    COLOR_LEGEND,
             font:     { size: 12 },
             boxWidth: 16,
+            // Hide the internal band datasets (label prefixed with "__").
+            filter: (item) => !(item.text ?? "").startsWith("__"),
           },
         },
         tooltip: {
+          // Don't show the band's min/max helper datasets in the tooltip.
+          filter: (item) => !(item.dataset.label ?? "").startsWith("__"),
           callbacks: {
             // Show unit in tooltip so the value is unambiguous
             label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}°F`,
