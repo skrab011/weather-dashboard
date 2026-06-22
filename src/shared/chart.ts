@@ -34,7 +34,7 @@ import {
 // Filler is needed for the disagreement band's area fill (the lines use fill:false).
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
 
-import type { CAICPointForecastRow, ChartVar, NWSPeriod, OpenMeteoForecast } from "./types";
+import type { CAICPointForecastRow, ChartVar, NWSPeriod, OpenMeteoForecast, OpenMeteoRow } from "./types";
 
 // CAIC's point-forecast grid cell sits at a higher elevation than town sites.
 const CAIC_ELEV_FT = 9_219; // actual looper grid cell elevation
@@ -100,17 +100,40 @@ export function renderOverlayChart(
     return;
   }
 
-  const isTemp = variable !== "wind";
+  // Which variable family are we plotting?
+  //   temp / wind   → NWS + CAIC + ECMWF, with NWS as the base series.
+  //   precip / snow → amounts (inches) from CAIC + ECMWF only. NWS's hourly feed
+  //                   reports precip *probability*, not an amount, so it can't
+  //                   share this axis honestly — it is omitted for these.
+  const isTemp   = variable === "temp";
+  const isWind   = variable === "wind";
+  const isAmount = variable === "precip" || variable === "snow";
+  const includeNws = !isAmount;
+
+  // Per-variable display details.
+  const unitSuffix = isTemp ? "°F" : isWind ? " mph" : " in";
+  const axisTitle =
+    isTemp ? "Temperature (°F)" :
+    isWind ? "Wind speed (mph)" :
+    variable === "precip" ? "Precipitation (in)" : "Snowfall (in)";
+  const varNoun =
+    isTemp ? "Temperature" :
+    isWind ? "Wind" :
+    variable === "precip" ? "Precipitation" : "Snowfall";
+  // Straight segments for amounts — smoothing would dip a 0→spike→0 curve below
+  // zero, implying negative precip. Temp/wind keep the gentle curve.
+  const lineTension = isAmount ? 0 : 0.3;
 
   // Slice to the next 48 hours of hourly periods
   const cutoff   = Date.now() + 48 * 3_600_000;
   const nwsSlice = nwsHourly.filter((p) => new Date(p.startTime).getTime() < cutoff);
 
-  const labels  = nwsSlice.map((p) => fmtHour(p.startTime));
-  // NWS values for the selected variable (wind is a string that needs parsing).
-  const nwsVals = nwsSlice.map((p) =>
-    isTemp ? p.temperature : parseWindMph(p.windSpeed),
-  );
+  const labels = nwsSlice.map((p) => fmtHour(p.startTime));
+
+  // NWS values — only for temp/wind (wind is a string that needs parsing).
+  const nwsVals = includeNws
+    ? nwsSlice.map((p) => (isTemp ? p.temperature : parseWindMph(p.windSpeed)))
+    : null;
 
   // Align an external hourly series to the NWS timestamps by nearest match
   // within a 1.5-hour window. Null where no close match exists.
@@ -130,12 +153,32 @@ export function renderOverlayChart(
     });
   }
 
+  // Per-source field for the selected variable.
+  const caicField = (r: CAICPointForecastRow): number | null => {
+    switch (variable) {
+      case "temp":   return r.tmpF;
+      case "wind":   return r.windSpeedMph;
+      case "precip": return r.precipIn;
+      case "snow":   return r.snowIn;
+      default:       return null;
+    }
+  };
+  const omField = (r: OpenMeteoRow): number | null => {
+    switch (variable) {
+      case "temp":   return r.tempF;
+      case "wind":   return r.windMph;
+      case "precip": return r.precipIn;
+      case "snow":   return r.snowIn;
+      default:       return null;
+    }
+  };
+
   const caicVals = caicForecast && caicForecast.length > 0
-    ? alignToNws(caicForecast, (r) => (isTemp ? r.tmpF : r.windSpeedMph))
+    ? alignToNws(caicForecast, caicField)
     : null;
 
   const omVals = openMeteo && openMeteo.rows.length > 0
-    ? alignToNws(openMeteo.rows, (r) => (isTemp ? r.tempF : r.windMph))
+    ? alignToNws(openMeteo.rows, omField)
     : null;
 
   // A series may exist but have no values for the selected variable (e.g. CAIC
@@ -148,29 +191,32 @@ export function renderOverlayChart(
 
   // (Re-)create a fresh canvas inside the placeholder on every render.
   // This avoids any stale Chart.js state from a previous render cycle.
-  const ariaLabel = isTemp ? "Temperature forecast comparison chart" : "Wind forecast comparison chart";
+  const ariaLabel = `${varNoun} forecast comparison chart`;
   placeholder.innerHTML = `<canvas class="overlay-chart-canvas" aria-label="${ariaLabel}"></canvas>`;
   const canvas = placeholder.querySelector<HTMLCanvasElement>("canvas")!;
 
   const elev = (ft: number) => `${ft.toLocaleString()} ft`;
-  // Elevation context only makes sense for temperature; for wind use the bare
+  // Elevation context only makes sense for temperature; otherwise use the bare
   // source name. The elevation label is shown only when ≥ 5,000 ft.
   const nwsLabel = isTemp
     ? (nwsElevFt !== null && nwsElevFt >= 5_000 ? `NWS (${elev(nwsElevFt)})` : "NWS Temperature")
     : "NWS";
 
-  const datasets: Chart["data"]["datasets"] = [
-    {
+  const datasets: Chart["data"]["datasets"] = [];
+
+  // NWS series — temp/wind only (omitted for precip/snow amounts).
+  if (includeNws && nwsVals) {
+    datasets.push({
       label:           nwsLabel,
       data:            nwsVals,
       borderColor:     COLOR_NWS,
       backgroundColor: "rgba(179,157,219,0.07)",
       borderWidth:     2,
       pointRadius:     0,       // hide individual points — too cluttered at 48hrs
-      tension:         0.3,
+      tension:         lineTension,
       fill:            false,
-    },
-  ];
+    });
+  }
 
   // CAIC series — only added when data is available.
   if (caicHasData) {
@@ -181,7 +227,7 @@ export function renderOverlayChart(
       backgroundColor: "rgba(245,158,11,0.07)",
       borderWidth:     2,
       pointRadius:     0,
-      tension:         0.3,
+      tension:         lineTension,
       fill:            false,
     });
   }
@@ -200,7 +246,7 @@ export function renderOverlayChart(
       backgroundColor: "rgba(77,208,225,0.07)",
       borderWidth:     2,
       pointRadius:     0,
-      tension:         0.3,
+      tension:         lineTension,
       fill:            false,
     });
   }
@@ -211,13 +257,14 @@ export function renderOverlayChart(
   // values. The two band datasets are inserted at the front of the array so they
   // render *behind* the lines, and are flagged with a "__" label prefix so they
   // are excluded from the legend and tooltip (see the filters below).
-  const bandSeries: (number | null)[][] = [nwsVals];
+  const bandSeries: (number | null)[][] = [];
+  if (includeNws && nwsVals) bandSeries.push(nwsVals);
   if (caicHasData) bandSeries.push(caicVals!);
   if (omHasData)   bandSeries.push(omVals!);
   if (bandSeries.length >= 2) {
     const bandMax: (number | null)[] = [];
     const bandMin: (number | null)[] = [];
-    for (let i = 0; i < nwsVals.length; i++) {
+    for (let i = 0; i < labels.length; i++) {
       const vals = bandSeries
         .map((s) => s[i])
         .filter((v): v is number => v !== null && Number.isFinite(v));
@@ -238,7 +285,7 @@ export function renderOverlayChart(
       backgroundColor: "transparent",
       borderWidth:     0,
       pointRadius:     0,
-      tension:         0.3,
+      tension:         lineTension,
       fill:            false,
     });
     datasets.unshift({
@@ -248,7 +295,7 @@ export function renderOverlayChart(
       backgroundColor: COLOR_BAND,
       borderWidth:     0,
       pointRadius:     0,
-      tension:         0.3,
+      tension:         lineTension,
       fill:            "+1", // fill the area down to the min dataset
     });
   }
@@ -276,7 +323,7 @@ export function renderOverlayChart(
           filter: (item) => !(item.dataset.label ?? "").startsWith("__"),
           callbacks: {
             // Show unit in tooltip so the value is unambiguous
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}${isTemp ? "°F" : " mph"}`,
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}${unitSuffix}`,
           },
         },
       },
@@ -291,6 +338,7 @@ export function renderOverlayChart(
           grid: { color: COLOR_GRID },
         },
         y: {
+          beginAtZero: isAmount, // amounts can't be negative — anchor at 0
           ticks: {
             color:    COLOR_TICKS,
             font:     { size: 11 },
@@ -299,7 +347,7 @@ export function renderOverlayChart(
           grid:  { color: COLOR_GRID },
           title: {
             display: true,
-            text:    isTemp ? "Temperature (°F)" : "Wind speed (mph)",
+            text:    axisTitle,
             color:   COLOR_TICKS,
             font:    { size: 11 },
           },

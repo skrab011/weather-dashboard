@@ -578,14 +578,23 @@ export function renderChart(
 
   const ts = hourlyResult.lastUpdated ?? hourlyResult.lastGoodUpdated;
   const isStale = !!hourlyResult.error && !!hourlyResult.lastGoodData;
-  const title = activeVar === "wind" ? "Wind Forecast" : "Temperature Forecast";
+  const title =
+    activeVar === "wind"   ? "Wind Forecast" :
+    activeVar === "precip" ? "Precipitation Forecast" :
+    activeVar === "snow"   ? "Snowfall Forecast" :
+    "Temperature Forecast";
+
+  const varBtn = (v: ChartVar, label: string) =>
+    `<button class="chart-var-btn${activeVar === v ? " chart-var-btn--active" : ""}" data-chart-var="${v}">${label}</button>`;
 
   el.innerHTML = `
     <section class="card${isStale ? " card--error" : ""}">
       <h2 class="card-title">${title}</h2>
       <div class="chart-var-toggle" role="group" aria-label="Chart variable">
-        <button class="chart-var-btn${activeVar === "temp" ? " chart-var-btn--active" : ""}" data-chart-var="temp">Temp</button>
-        <button class="chart-var-btn${activeVar === "wind" ? " chart-var-btn--active" : ""}" data-chart-var="wind">Wind</button>
+        ${varBtn("temp", "Temp")}
+        ${varBtn("wind", "Wind")}
+        ${varBtn("precip", "Precip")}
+        ${varBtn("snow", "Snow")}
       </div>
       <div id="caic-chart-placeholder" class="caic-chart-placeholder"></div>
       ${cardFooter(ts, hourlyResult.error)}

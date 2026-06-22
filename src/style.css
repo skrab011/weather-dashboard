@@ -154,9 +154,10 @@ body {
   color: var(--accent);
 }
 
-/* Compact Temp/Wind segmented control inside the forecast comparison card. */
+/* Compact variable segmented control inside the forecast comparison card. */
 .chart-var-toggle {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   margin-bottom: 0.6rem;
 }

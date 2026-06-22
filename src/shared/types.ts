@@ -157,7 +157,9 @@ export interface LocationWeather {
 export type ViewMode = "hourly" | "7day";
 
 // Which variable the comparison chart plots (one at a time — see Track C).
-export type ChartVar = "temp" | "wind";
+// temp/wind draw NWS + CAIC + ECMWF; precip/snow draw amounts from CAIC + ECMWF
+// only (NWS's hourly feed gives precip *probability*, not an amount).
+export type ChartVar = "temp" | "wind" | "precip" | "snow";
 
 // ---------------------------------------------------------------------------
 // CAIC types — Colorado Avalanche Information Center
