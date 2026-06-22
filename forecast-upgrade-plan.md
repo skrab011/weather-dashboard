@@ -1,10 +1,12 @@
 # Forecast Comparison Upgrade — Build Plan
 
-> Status: **in progress.** Track D step **D1 complete and merged to `main`**
-> (2026-06-22). Next up: Track A (Open-Meteo / ECMWF). This doc is the source of
-> truth for three related upgrades to the temperature/forecast comparison chart
-> and the AI brief. Read this first; each step has a matching copy-paste prompt
-> in the "Session prompts" appendix at the bottom.
+> Status: **in progress.** **D1** and **Track A (A1–A3)** complete and merged to
+> `main` (2026-06-22) — the comparison chart now draws the ECMWF (Open-Meteo)
+> line alongside NWS and CAIC. Next up: Track B (disagreement-highlight band).
+> This doc is the source of truth for three related upgrades to the
+> temperature/forecast comparison chart and the AI brief. Read this first; each
+> step has a matching copy-paste prompt in the "Session prompts" appendix at the
+> bottom.
 >
 > Companion to `CLAUDE.md` (project rules), `v2-overview.md`/`v2-plan.md` (how
 > V1 and V2 share one engine), and `build-log.md` (history).
@@ -105,7 +107,7 @@ Two options:
 
 ---
 
-## 4. Track A — Open-Meteo model series
+## 4. Track A — Open-Meteo model series  ✅ A1–A3 done (merged to `main` 2026-06-22)
 
 **Goal:** add ECMWF (the European model) as a new line on the comparison chart,
 fetched directly from the browser (Open-Meteo is keyless and allows browser
@@ -124,7 +126,7 @@ calls, so it follows the same pattern as NWS — no serverless proxy needed).
 
 ### Steps (one commit each)
 
-- **A1 — Fetch module + types (no UI yet).**
+- **A1 — Fetch module + types (no UI yet). ✅ Done.**
   Create `src/shared/openmeteo.ts` with a `fetchOpenMeteo(lat, lon)` that calls
   `https://api.open-meteo.com/v1/forecast` requesting `temperature_2m` (and,
   ready for later, `wind_speed_10m`, `precipitation`, `snowfall`) in Fahrenheit
@@ -137,7 +139,7 @@ calls, so it follows the same pattern as NWS — no serverless proxy needed).
   *Verify:* `npm run build` is green; I paste the exact Open-Meteo URL for you to
   open in Safari/Chrome and confirm it returns JSON for Home's coordinates.
 
-- **A2 — Wire into state + boot fetch (still not drawn).**
+- **A2 — Wire into state + boot fetch (still not drawn). ✅ Done.**
   Add `openMeteo: SourceResult<OpenMeteoForecast>` to `LocationWeather`, seed it
   in `createStore`, and fetch it (wrapped in the `settle()` failure-isolation
   helper) per location in both `main.ts` and `shared-main.ts`.
@@ -145,7 +147,7 @@ calls, so it follows the same pattern as NWS — no serverless proxy needed).
   `open-meteo.com` request returns 200. **iPhone:** no network tab — I'll add a
   temporary visible note or you confirm via the next step's chart.
 
-- **A3 — Draw the ECMWF line on the chart.**
+- **A3 — Draw the ECMWF line on the chart. ✅ Done (owner verified on V1, 2026-06-22).**
   Thread the Open-Meteo data through `renderChart` → `renderOverlayChart` as a
   third dataset (new color — propose a green/teal distinct from NWS lavender and
   CAIC amber), aligned to the chart's hourly axis the same way CAIC is. Show its

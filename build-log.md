@@ -439,3 +439,47 @@ applies only to *build* sessions, not the running app.
 for V1, and `?lat=30.27&lon=-97.74&co=false&refresh=true` for a non-CO example)
 against production and confirmed the briefs read richer and more regional, with
 jargon translated. Merged to `main` 2026-06-22.
+
+### Track A — Open-Meteo (ECMWF) model line on the comparison chart ✅ (merged to `main`)
+
+**What & why.** The comparison chart showed only NWS + CAIC. Open-Meteo
+(`api.open-meteo.com`) is a free, keyless, CORS-friendly service that serves
+several global models; we added **ECMWF** (the European model) as a third line.
+Biggest win: non-Colorado V2 locations, which had no second source at all, now
+get a real model to compare NWS against. ECMWF also supplies clean, consistent
+multi-variable data that Tracks B (disagreement band) and C (variable toggle)
+build on.
+
+**Implementation, in three small steps (one commit each):**
+- **A1** — `src/shared/openmeteo.ts`: `fetchOpenMeteo(lat, lon)` (ECMWF,
+  °F/mph/inch, `forecast_days=3`, `timeformat=unixtime` for unambiguous UTC
+  timestamps) returning normalized hourly rows (`dateTime`/`tempF`/`windMph`/
+  `precipIn`/`snowIn`, mirroring `CAICPointForecastRow`) + grid-cell
+  `elevationFt`. A `series()` accessor tolerates both unsuffixed and
+  `{key}_{model}` field names so adding GFS/ICON later (A4) is trivial. New
+  `OpenMeteoForecast`/`OpenMeteoRow` types. Called direct from the browser like
+  NWS — no serverless proxy, no key.
+- **A2** — `openMeteo: SourceResult<OpenMeteoForecast>` added to
+  `LocationWeather`, seeded in `createStore`, fetched per location in both boot
+  files (`main.ts`, `shared-main.ts`) in parallel with NWS + air quality via a
+  non-throwing `fetchOpenMeteoResult()` wrapper (mirrors `settle()`). The
+  `NWSWeatherResult` Omit also excludes `openMeteo` so `fetchAllForLocation`
+  still type-checks. Nothing drawn yet.
+- **A3** — `renderChart` → `renderOverlayChart` gain the Open-Meteo result and
+  draw it as a third dataset (cyan `#4dd0e1`), aligned to the NWS hourly axis
+  the same way CAIC is, with a model-elevation label using the same ≥ 5,000 ft
+  threshold. Guarded: skipped when data is null, so the chart still draws NWS
+  (+ CAIC) without it.
+
+**Notes / watch-items.**
+- ECMWF's grid-cell elevation can read lower than reality in the mountains
+  (global models use smoothed terrain) — the elevation label exists precisely so
+  that gap reads as elevation, not model disagreement.
+- Open-Meteo asks for a "Weather data by Open-Meteo.com" attribution; to be added
+  in the chart UI (folded into a later polish step).
+- Wind/precip/snow are fetched now but not yet drawn — they wait for the variable
+  toggle (Track C). Confirm precip/snow units against the live feed when C plots
+  them.
+
+**Verification.** Owner verified the three-line chart on V1 (preview deploy).
+Merged to `main` 2026-06-22.

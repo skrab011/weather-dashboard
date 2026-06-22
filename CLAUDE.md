@@ -58,7 +58,7 @@ Priority order for tradeoffs:
 | **AirNow** (EPA) | Official PM2.5 monitor reading | Cross-check vs. PurpleAir. Flag PM2.5 red when sources differ by **>10% AND >5 µg/m³**. |
 
 ### Overlay chart + consensus brief
-- Chart: NWS + CAIC temperatures on shared axes, elevation labeled for each series. NWS elevation: ~9,035 ft; CAIC elevation: 9,219 ft.
+- Chart: NWS + CAIC + ECMWF (Open-Meteo) temperatures on shared axes, elevation labeled for each series. NWS elevation: ~9,035 ft; CAIC elevation: 9,219 ft; ECMWF elevation from the live Open-Meteo grid cell. (ECMWF line added 2026-06-22 — Track A.)
 - Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC + the latest NWS Area Forecast Discussion (AFD), returns 3–5 sentence plain-prose summary with forecaster jargon translated to plain language. Cached in Vercel Blob. Manual refresh button on the card. (AFD added 2026-06-22 — see "Forecast comparison upgrade" below and `forecast-upgrade-plan.md`.)
 
 ## API keys (all provisioned)
@@ -176,6 +176,7 @@ A multi-step epic to make the forecast comparison chart + AI brief more useful o
 - **Rollout rule:** the chart is shared code (`src/shared/chart.ts` / `cards.ts`), so every change is built in the shared engine, made additive with V1-preserving defaults, proven on V1 first (always in CO = richest test), confirmed on V2, then merged to `main` per verified step. Test on a Vercel **preview** deploy off branch `claude/epic-wright-jx6ho7` before merging to `main`.
 - **New free, keyless data sources introduced by this epic:** NWS AFD (`api.weather.gov/products`) and Open-Meteo (`api.open-meteo.com`, ECMWF/GFS/etc.). Both are CORS-friendly and follow the NWS direct-from-browser pattern (no serverless proxy); the brief's AFD call is server-side inside `api/brief.ts`.
 - ✅ **D1 done (merged to `main` 2026-06-22):** AFD folded into both brief prompts. See `build-log.md` → "Forecast comparison upgrade".
+- ✅ **Track A (A1–A3) done (merged to `main` 2026-06-22):** ECMWF (Open-Meteo) drawn as a third line on the comparison chart (cyan), per location, alongside NWS + CAIC. New `src/shared/openmeteo.ts`; `openMeteo` field on `LocationWeather`. Non-CO V2 locations now show NWS + ECMWF. Wind/precip/snow are fetched but not yet drawn (await Track C). See `build-log.md`.
 
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
