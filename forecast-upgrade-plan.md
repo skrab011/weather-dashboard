@@ -1,9 +1,10 @@
 # Forecast Comparison Upgrade — Build Plan
 
-> Status: **planning.** Not started. This doc is the source of truth for three
-> related upgrades to the temperature/forecast comparison chart and the AI
-> brief. Read this first; each step has a matching copy-paste prompt in the
-> "Session prompts" appendix at the bottom.
+> Status: **in progress.** Track D step **D1 complete and merged to `main`**
+> (2026-06-22). Next up: Track A (Open-Meteo / ECMWF). This doc is the source of
+> truth for three related upgrades to the temperature/forecast comparison chart
+> and the AI brief. Read this first; each step has a matching copy-paste prompt
+> in the "Session prompts" appendix at the bottom.
 >
 > Companion to `CLAUDE.md` (project rules), `v2-overview.md`/`v2-plan.md` (how
 > V1 and V2 share one engine), and `build-log.md` (history).
@@ -229,7 +230,7 @@ shown — one at a time, so the chart never gets crowded.
 
 ---
 
-## 7. Track D — Area Forecast Discussion → brief
+## 7. Track D — Area Forecast Discussion → brief  ✅ D1 done (merged to `main` 2026-06-22)
 
 **Goal:** the NWS publishes a forecaster-written "Area Forecast Discussion"
 (AFD) for every region of the US, free and keyless via `api.weather.gov`. Fold
@@ -256,9 +257,15 @@ language. This is the nationwide CAIC-analog for V2, and it enriches V1 too.
 
 ### Steps
 
-- **D1 — Fetch + inject AFD.**
-  Implement `fetchAFD`, capture the office id in `fetchNWS`, inject trimmed AFD
-  into the prompt. Bump nothing else.
+- **D1 — Fetch + inject AFD. ✅ Done (2026-06-22).**
+  Implemented in `api/brief.ts`: self-contained, non-throwing `fetchAFD(office)`
+  (latest AFD product text, collapsed + capped at 1,800 chars, `"Unavailable"`
+  on any failure); the forecast office id is captured from the `/points`
+  response (`properties.gridId`) inside `fetchNWS` and AFD is fetched as a 4th
+  parallel call; the trimmed AFD is injected into **both** prompt variants (CO
+  consensus + non-CO forecast) with an instruction to translate jargon to plain
+  language. Owner verified the briefs read richer on the preview deploy. Bumped
+  nothing else.
   *Verify:* **iPhone-friendly** — open
   `https://weather-dashboard-five-umber.vercel.app/api/brief?refresh=true` (V1)
   and a non-CO example like

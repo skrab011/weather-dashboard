@@ -393,3 +393,49 @@ Result: "42 Lacy Dr, Silverthorne, CO".
 Bug encountered: first ZIP strip regex was `/\s+\d{5}(?:-\d{4})?$/` (space-before-ZIP only). Census actual format has a comma before the ZIP ("CO, 80498"), so stripping " 80498" left "CO," → title-cased to "Co," → state-uppercase regex `/\b[A-Za-z]{2}$/` failed (string ended with comma, not a letter). User reported seeing "42 Lacy Dr, Silverthorne, Co,". Fixed by making the leading comma optional in the strip regex and adding the fallback comma cleanup.
 
 Labels are stored in `localStorage` at search time; previously saved locations retain their old label until the user removes and re-adds the location.
+
+---
+
+## Forecast comparison upgrade (2026-06-22 →)
+
+A multi-step epic to make the forecast comparison chart and AI brief more
+useful for both V1 and V2. Full plan, sequencing, and per-step session prompts
+live in `forecast-upgrade-plan.md`. Tracks: **D** (AFD → brief), **A**
+(Open-Meteo / ECMWF model series on the chart — the keystone), **B**
+(disagreement-highlight band), **C** (Temp/Wind/… variable toggle). Order:
+**D → A → B → C**. Rollout: build in the shared engine, prove on V1 first
+(always has CAIC = richest test), confirm V2, merge to `main` per verified step.
+
+### D1 — NWS Area Forecast Discussion folded into the brief ✅ (merged to `main`)
+
+**What & why.** The brief previously ingested NWS + CAIC only. The NWS Area
+Forecast Discussion (AFD) is a forecaster-written regional narrative published
+nationwide, free and keyless via `api.weather.gov` — the closest national
+equivalent to CAIC's write-up. Folding it into the brief adds real regional
+reasoning everywhere (the biggest win is V2's non-Colorado locations, which had
+no narrative source at all) and, because Claude rewrites it, stays readable for
+a lay audience.
+
+**Implementation (all in `api/brief.ts`, kept self-contained per the `/api`
+no-cross-import rule).**
+- New `fetchAFD(office)`: two sequential keyless calls —
+  `/products/types/AFD/locations/{office}` for the newest product, then its
+  `@id` for `productText`. Collapses blank lines and caps length at 1,800 chars
+  to keep AI token cost trivial. Wrapped so it **never throws** — any failure
+  returns `"Unavailable"`, so a missing AFD never blocks brief generation
+  (failure isolation).
+- The forecast office id is read from the existing `/points` response
+  (`properties.gridId`, e.g. `"BOU"`) inside `fetchNWS`, and AFD is fetched as a
+  4th parallel call alongside hourly/7-day/alerts.
+- The trimmed AFD is injected into **both** prompt variants (CO consensus and
+  non-CO forecast) with an instruction to translate forecaster jargon
+  ("shortwave trough", "h5 ridging", "CAA") into plain language.
+
+**Cost note.** Runtime AI cost is still the existing Anthropic key (Haiku,
+pennies/month); AFD adds a small number of input tokens. The Claude Pro limit
+applies only to *build* sessions, not the running app.
+
+**Verification.** Owner compared the preview-deploy brief (`/api/brief?refresh=true`
+for V1, and `?lat=30.27&lon=-97.74&co=false&refresh=true` for a non-CO example)
+against production and confirmed the briefs read richer and more regional, with
+jargon translated. Merged to `main` 2026-06-22.

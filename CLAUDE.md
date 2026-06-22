@@ -59,7 +59,7 @@ Priority order for tradeoffs:
 
 ### Overlay chart + consensus brief
 - Chart: NWS + CAIC temperatures on shared axes, elevation labeled for each series. NWS elevation: ~9,035 ft; CAIC elevation: 9,219 ft.
-- Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC only, returns 3–5 sentence plain-prose summary. Cached in Vercel Blob. Manual refresh button on the card.
+- Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC + the latest NWS Area Forecast Discussion (AFD), returns 3–5 sentence plain-prose summary with forecaster jargon translated to plain language. Cached in Vercel Blob. Manual refresh button on the card. (AFD added 2026-06-22 — see "Forecast comparison upgrade" below and `forecast-upgrade-plan.md`.)
 
 ## API keys (all provisioned)
 
@@ -168,6 +168,14 @@ A **second, separate page** (`shared.html` → `/shared`) for friends/family to 
   - *Census Geocoder (street addresses):* Returns all-caps matched address with a trailing ZIP code (e.g. "42 LACY DR, SILVERTHORNE, CO, 80498"). Added `titleCaseAddress()` helper: strips trailing ZIP (handles both comma-before-ZIP and space-before-ZIP formats, plus any leftover trailing comma), lower-cases then title-cases each word, then restores the 2-letter state abbreviation to full uppercase using a `\b[A-Za-z]{2}$` regex. Result: "42 Lacy Dr, Silverthorne, CO". Note: the ZIP strip regex needed two passes — first strip matched Census's actual comma-before-ZIP format ("CO, 80498" → strip ", 80498" → "CO"), then a second `.replace(/,\s*$/, "")` clears any leftover trailing comma in edge cases.
   - Labels are stored in `localStorage` at search time; previously saved locations keep their old label until the user re-searches or removes and re-adds.
 - **V2 color palette (2026-06-19):** At a family member's request, V2's background was lightened. V2 now uses its own color palette defined in `src/shared-page/style.css` — a neutral dark gray bg (`#292929`) with neutral-cool surface tokens, distinct from V1's near-black blue-tinted palette. V1 colors are unchanged. V2 tokens: `--bg: #292929`, `--surface: #34363b`, `--surface-raised: #3d4047`, `--border: #46494f`, `--accent-dim: #3a2a62`. `--muted` is also overridden to `#8a95a8` (from V1's `#6b7280`) — the lighter surface dropped the original value to ~2:1 contrast, making small text like hourly times and card timestamps unreadable.
+
+## Forecast comparison upgrade (in progress, started 2026-06-22)
+
+A multi-step epic to make the forecast comparison chart + AI brief more useful on both V1 and V2. Full plan, sequencing, per-step session prompts, and the rollout/test strategy live in `forecast-upgrade-plan.md`. Tracks and order: **D** (AFD → brief) → **A** (Open-Meteo / ECMWF model series on the chart — the keystone) → **B** (disagreement-highlight band) → **C** (Temp/Wind/… variable toggle).
+
+- **Rollout rule:** the chart is shared code (`src/shared/chart.ts` / `cards.ts`), so every change is built in the shared engine, made additive with V1-preserving defaults, proven on V1 first (always in CO = richest test), confirmed on V2, then merged to `main` per verified step. Test on a Vercel **preview** deploy off branch `claude/epic-wright-jx6ho7` before merging to `main`.
+- **New free, keyless data sources introduced by this epic:** NWS AFD (`api.weather.gov/products`) and Open-Meteo (`api.open-meteo.com`, ECMWF/GFS/etc.). Both are CORS-friendly and follow the NWS direct-from-browser pattern (no serverless proxy); the brief's AFD call is server-side inside `api/brief.ts`.
+- ✅ **D1 done (merged to `main` 2026-06-22):** AFD folded into both brief prompts. See `build-log.md` → "Forecast comparison upgrade".
 
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
