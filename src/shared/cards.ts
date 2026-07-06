@@ -148,32 +148,38 @@ export function renderConditions(
   const uvNow = grid ? currentSeriesValue(grid.uVIndex.values) : null;
 
   const rows: string[] = [];
+  let hero = "";
 
   if (now) {
     const windDeg = WIND_DIR_DEG[now.windDirection] ?? 0;
 
-    // Show PurpleAir corrected temp beside NWS temp when requested by the caller.
-    // The PA value is additive — it never replaces the authoritative NWS reading.
+    // Show PurpleAir corrected temp beneath the condition when requested by the
+    // caller. The PA value is additive — it never replaces the NWS reading.
     const paTemp =
       showPaTemp && aq?.tempF !== null && aq?.tempF !== undefined
-        ? `<span class="temp-pa">${Math.round(aq.tempF)}°F</span>`
+        ? `<span class="temp-pa">PurpleAir ${Math.round(aq.tempF)}°F</span>`
         : "";
 
-    rows.push(`
-      <div class="cond-row">
-        <span class="cond-label">Temp</span>
-        <span class="cond-value">${now.temperature}°F ${paTemp}</span>
+    // Hero block replaces the old Temp + Sky rows: big NWS temp, condition
+    // text (+ optional PA annotation), condition icon on the right.
+    hero = `
+      <div class="cond-hero">
+        <span class="cond-hero__temp">${now.temperature}°</span>
+        <span class="cond-hero__meta">
+          <span class="cond-hero__cond">${now.shortForecast}</span>
+          ${paTemp}
+        </span>
+        <span class="cond-hero__icon">${weatherIcon(now)}</span>
       </div>
+    `;
+
+    rows.push(`
       <div class="cond-row">
         <span class="cond-label">Wind</span>
         <span class="cond-value">
           <span class="wind-arrow" style="transform:rotate(${windDeg}deg)" aria-hidden="true">↑</span>
           ${now.windDirection} ${fmtWind(now.windSpeed)}
         </span>
-      </div>
-      <div class="cond-row">
-        <span class="cond-label">Sky</span>
-        <span class="cond-value">${now.shortForecast}</span>
       </div>
     `);
   }
@@ -215,7 +221,8 @@ export function renderConditions(
   el.innerHTML = `
     <section class="card${hasError ? " card--error" : ""}">
       <h2 class="card-title">Now</h2>
-      ${rows.length ? rows.join("") : `<p class="card-empty">${hasError ? "Could not load current conditions." : "Loading conditions…"}</p>`}
+      ${hero}
+      ${rows.length || hero ? rows.join("") : `<p class="card-empty">${hasError ? "Could not load current conditions." : "Loading conditions…"}</p>`}
       ${cardFooter(ts ?? null, hasError ? "Could not load current conditions" : null)}
     </section>
   `;
@@ -468,13 +475,11 @@ function windMph(raw: string): string {
   return /^\d+$/.test(stripped) ? stripped : stripped.replace(/\s+to\s+/i, "–");
 }
 
-function stackedCell(className: string, dayVal: string, nightVal: string): string {
-  return `
-    <span class="${className}">
-      <span class="fc-day-val">${dayVal}</span>
-      <span class="fc-night-val">${nightVal}</span>
-    </span>`;
-}
+// Expanded-row state for the 7-day card. Module-local so the renderer stays
+// argument-pure for callers; reset whenever a different SourceResult arrives
+// (location/tab switch) so rows collapse by default on new data.
+let fcExpanded = new Set<number>();
+let fcLastResult: SourceResult<NWSPeriod[]> | null = null;
 
 export function renderForecast(result: SourceResult<NWSPeriod[]>): void {
   const el = document.getElementById("forecast-region")!;
@@ -494,46 +499,92 @@ export function renderForecast(result: SourceResult<NWSPeriod[]>): void {
     return;
   }
 
+  if (result !== fcLastResult) {
+    fcExpanded = new Set();
+    fcLastResult = result;
+  }
+
   const periods = (result.data ?? result.lastGoodData)!;
   const pairs   = pairPeriods(periods);
 
-  const rows = pairs.map(({ day, night }) => {
-    const dateLabel  = day ? fmtDay(day.startTime) : "Tonight";
-    const tempDay    = day   ? `${day.temperature}°`   : "—";
-    const tempNight  = night ? `${night.temperature}°`  : "—";
-    const descDay    = day   ? day.shortForecast   : "—";
-    const descNight  = night ? night.shortForecast  : "—";
-    const precipDay  = day   ? `${day.probabilityOfPrecipitation?.value   ?? 0}%` : "—";
-    const precipNight = night ? `${night.probabilityOfPrecipitation?.value ?? 0}%` : "—";
+  // Week-wide min/max across all day highs and night lows — the temp-range
+  // bars are positioned against this shared scale so rows compare visually.
+  const allTemps = pairs.flatMap(({ day, night }) =>
+    [day?.temperature, night?.temperature].filter((t): t is number => t != null));
+  const weekMin = Math.min(...allTemps);
+  const weekMax = Math.max(...allTemps);
+  const weekSpan = weekMax - weekMin;
 
-    const windCell = (p: NWSPeriod | null): string => {
-      if (!p) return "—";
-      const deg = WIND_DIR_DEG[p.windDirection] ?? 0;
-      return `<span class="wind-arrow" style="transform:rotate(${deg}deg)" aria-hidden="true">↑</span>${windMph(p.windSpeed)} mph`;
-    };
+  const windValue = (p: NWSPeriod): string => {
+    const deg = WIND_DIR_DEG[p.windDirection] ?? 0;
+    return `<span class="wind-arrow" style="transform:rotate(${deg}deg)" aria-hidden="true">↑</span> ${p.windDirection} ${windMph(p.windSpeed)} mph`;
+  };
+
+  const rows = pairs.map(({ day, night }, i) => {
+    const expanded  = fcExpanded.has(i);
+    const dateLabel = day ? fmtDay(day.startTime) : "Tonight";
+    // Day period leads; the "Tonight"-only first row falls back to night values.
+    const lead    = day ?? night;
+    const outlook = lead ? lead.shortForecast : "—";
+    const precip  = lead ? `${lead.probabilityOfPrecipitation?.value ?? 0}%` : "—";
+    const lo = night ? `${night.temperature}°` : "—";
+    const hi = day   ? `${day.temperature}°`   : "—";
+
+    // Range bar only when both temps exist and the week has a usable span.
+    let bar = "";
+    if (day && night && weekSpan > 0) {
+      const left  = ((night.temperature - weekMin) / weekSpan) * 100;
+      const width = ((day.temperature - night.temperature) / weekSpan) * 100;
+      bar = `<span class="fc-range__fill" style="left:${left.toFixed(1)}%;width:${Math.max(width, 0).toFixed(1)}%"></span>`;
+    }
+
+    const detailItem = (label: string, value: string) => `
+      <span class="fc-detail__item">
+        <span class="fc-detail__label">${label}</span>
+        <span class="fc-detail__value">${value}</span>
+      </span>`;
+
+    const detail = !expanded ? "" : `
+      <div class="fc-detail">
+        ${night ? detailItem("Night", `${night.shortForecast} · ${night.probabilityOfPrecipitation?.value ?? 0}%`) : ""}
+        ${day   ? detailItem("Wind day", windValue(day))     : ""}
+        ${night ? detailItem("Wind night", windValue(night)) : ""}
+      </div>`;
 
     return `
-      <div class="forecast-row" role="listitem">
-        <span class="forecast-day">${dateLabel}</span>
-        ${stackedCell("forecast-temp", tempDay, tempNight)}
-        ${stackedCell("forecast-desc", descDay, descNight)}
-        <span class="forecast-wind">
-          <span class="fc-day-val">${windCell(day)}</span>
-          <span class="fc-night-val">${windCell(night)}</span>
+      <button class="fc-row${expanded ? " fc-row--open" : ""}" data-fc-idx="${i}"
+              aria-expanded="${expanded}" aria-label="${dateLabel}: ${outlook}, tap for details">
+        <span class="fc-day">${dateLabel}</span>
+        <span class="fc-outlook-wrap">
+          <span class="fc-outlook">${outlook}</span>
+          <span class="fc-precip">${precip}</span>
         </span>
-        ${stackedCell("forecast-precip", precipDay, precipNight)}
-      </div>`;
+        <span class="fc-lo">${lo}</span>
+        <span class="fc-range">${bar}</span>
+        <span class="fc-hi">${hi}</span>
+        <span class="fc-chevron" aria-hidden="true">${expanded ? "▾" : "▸"}</span>
+      </button>
+      ${detail}`;
   });
 
   el.innerHTML = `
     <section class="card view-7day${result.error ? " card--error" : ""}">
       <h2 class="card-title">7-Day</h2>
-      <div class="forecast-list" role="list">
+      <div class="forecast-list">
         ${rows.join("")}
       </div>
       ${cardFooter(result.lastUpdated ?? result.lastGoodUpdated, result.error)}
     </section>
   `;
+
+  el.querySelectorAll<HTMLButtonElement>(".fc-row").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.fcIdx);
+      if (fcExpanded.has(idx)) fcExpanded.delete(idx);
+      else fcExpanded.add(idx);
+      renderForecast(result);
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -768,13 +819,19 @@ export function renderTomer(result: SourceResult<TomerVideo>): void {
     .replace(/>/g, "&gt;")
     .replace(/\n/g, "<br>");
 
+  // Single merged footer: "Posted Sat, Jul 4 · Last updated 6:45 AM"
+  // (error note first when showing stale data, same as cardFooter).
+  const footerParts: string[] = [];
+  if (result.error) footerParts.push(`<span class="footer-error">⚠ ${result.error}</span>`);
+  if (published) footerParts.push(`Posted ${published}`);
+  if (ts) footerParts.push(`Last updated ${fmtTime(ts)}`);
+
   el.innerHTML = `
     <section class="card${isStale ? " card--error" : ""}">
       <h2 class="card-title">Mountain Weather Update</h2>
       <p class="tomer-video-title">${d.title}</p>
       <div class="tomer-body">${descHtml}</div>
-      ${cardFooter(ts, result.error)}
-      ${published ? `<footer class="card-footer tomer-published">Posted ${published}</footer>` : ""}
+      ${footerParts.length ? `<footer class="card-footer">${footerParts.join(" · ")}</footer>` : ""}
     </section>
   `;
 }

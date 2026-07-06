@@ -237,6 +237,11 @@ body {
   font-weight: 600;
 }
 
+/* Event name takes the banner's severity color (matches the left border) */
+.alert-banner--danger .alert-event { color: var(--danger); }
+.alert-banner--warn   .alert-event { color: var(--warn); }
+.alert-banner--info   .alert-event { color: var(--info); }
+
 .alert-headline {
   color: var(--fg-secondary);
 }
@@ -328,6 +333,45 @@ body {
 /* =========================================================================
    Conditions card (Now)
    ========================================================================= */
+
+/* Hero block — big current temp, condition + optional PA temp, icon right */
+.cond-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 2px 1rem 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cond-hero__temp {
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.cond-hero__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cond-hero__cond {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* Condition icon reuses the hourly-strip glyph markup at a larger size */
+.cond-hero__icon {
+  margin-left: auto;
+}
+
+.cond-hero__icon .hour-icon {
+  width: 44px;
+  height: 44px;
+}
+
 .cond-row {
   display: flex;
   justify-content: space-between;
@@ -497,88 +541,168 @@ body {
 }
 
 /* =========================================================================
-   7-day forecast list
-   Columns: date | temp | outlook | wind | precip%
-   Day and night values are stacked vertically within each cell.
+   7-day forecast list — one tappable row per day with a temp-range bar;
+   night + wind details expand below the row on tap.
+
+   Mobile-first: narrow grid with precip stacked under the outlook text.
+   ≥600px: the outlook wrapper flattens (display:contents) so outlook and
+   precip become separate grid columns.
    ========================================================================= */
 .forecast-list {
   padding: 0 0 0.25rem;
 }
 
-.forecast-row {
+/* Row is a real <button> for tap/keyboard accessibility — reset chrome */
+.fc-row {
   display: grid;
-  /* date is fixed; temp and precip are narrow; outlook gets the remaining space; wind is fixed */
-  grid-template-columns: 80px 44px 1fr 80px 34px;
+  grid-template-columns: 60px minmax(0, 1fr) 30px 88px 30px 10px;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.55rem 1rem;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 1rem;
+  border: none;
   border-bottom: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.forecast-row:last-child {
+.forecast-list > :last-child {
   border-bottom: none;
 }
 
-/* Stacked day/night helper — both .fc-day-val and .fc-night-val sit in a flex column */
-.forecast-temp,
-.forecast-desc,
-.forecast-wind,
-.forecast-precip {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+/* Expanded row + its detail line share a slightly raised background
+   (≈ #171a23 on V1; token-relative so V2's lighter palette inherits) */
+.fc-row--open,
+.fc-detail {
+  background: color-mix(in srgb, var(--surface) 60%, var(--surface-raised));
 }
 
-/* Day value (top line) */
-.fc-day-val {
-  font-size: 0.88rem;
-  line-height: 1.3;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
+.fc-row--open {
+  border-bottom: none;
 }
 
-/* Night value (bottom line) — slightly muted to visually de-emphasise */
-.fc-night-val {
-  font-size: 0.8rem;
-  color: var(--fg-secondary);
-  line-height: 1.3;
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.forecast-day {
-  font-size: 0.875rem;
+.fc-day {
+  font-size: 13.5px;
   font-weight: 500;
   white-space: nowrap;
-  align-self: center;
 }
 
-.forecast-temp {
-  text-align: right;
-  align-items: flex-end;
+/* Mobile: outlook with precip % stacked beneath */
+.fc-outlook-wrap {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.forecast-temp .fc-day-val {
-  font-weight: 600;
-}
-
-.forecast-desc .fc-day-val,
-.forecast-desc .fc-night-val {
+.fc-outlook {
+  font-size: 13.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: block; /* override flex so ellipsis works */
 }
 
-.forecast-precip {
-  align-items: flex-end;
+.fc-precip {
+  font-size: 12px;
   color: var(--info);
 }
 
-.forecast-precip .fc-night-val {
-  color: color-mix(in srgb, var(--info) 70%, transparent);
+.fc-lo {
+  font-size: 13px;
+  color: var(--fg-secondary);
+  text-align: right;
+}
+
+.fc-hi {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Temp-range bar — fill positioned/sized against the week's min/max */
+.fc-range {
+  position: relative;
+  height: 6px;
+  background: var(--surface-raised);
+  border-radius: 3px;
+}
+
+.fc-range__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #7e6bb0, var(--accent));
+  border-radius: 3px;
+}
+
+.fc-chevron {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.fc-row--open .fc-chevron {
+  color: var(--accent);
+}
+
+/* Expanded detail line — labeled stacks for night outlook + day/night wind */
+.fc-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  padding: 0 1rem 12px 84px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fc-detail__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fc-detail__label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fc-detail__value {
+  font-size: 13px;
+  color: var(--fg-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+@media (min-width: 600px) {
+  .fc-row {
+    grid-template-columns: 72px 1fr 44px 34px 130px 34px 16px;
+    gap: 10px;
+  }
+
+  /* Flatten the outlook wrapper so outlook + precip are own grid columns */
+  .fc-outlook-wrap {
+    display: contents;
+  }
+
+  .fc-day,
+  .fc-outlook {
+    font-size: 0.875rem;
+  }
+
+  .fc-precip {
+    font-size: 13px;
+    text-align: right;
+  }
+
+  .fc-detail {
+    flex-wrap: nowrap;
+    gap: 24px;
+    padding: 0 1rem 12px 98px;
+  }
 }
 
 /* =========================================================================
@@ -689,13 +813,6 @@ body {
   line-height: 1.6;
   color: var(--fg);
   padding: 0 1rem 0.75rem;
-}
-
-/* Posted date sits below the description, styled like a footer */
-.tomer-published {
-  border-top: none;
-  padding-top: 0;
-  margin-top: 0;
 }
 
 /* =========================================================================
