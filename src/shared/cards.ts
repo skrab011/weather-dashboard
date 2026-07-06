@@ -31,6 +31,7 @@ import type {
 } from "./types";
 import { currentSeriesValue, seriesValueAt, sumSeriesNextHours } from "./nws";
 import { renderOverlayChart } from "./chart";
+import { weatherIcon } from "./weatherIcons";
 
 // ---------------------------------------------------------------------------
 // Utilities
@@ -345,8 +346,9 @@ export function renderSparkline(trend: (number | null)[], flagged: boolean): str
 //
 // A Temp/Wind toggle (same pill styling as the chart's variable toggle) swaps
 // what each hour block shows:
-//   temp — temperature + precip chance (the original card, unchanged)
-//   wind — direction arrow + sustained speed, with the gust ("G ##") below.
+//   temp — inline SVG condition icon + temperature + precip chance
+//   wind — direction arrow + sustained speed, with the gust ("G ##") below
+//          (no condition icon — wind mode is numbers-only by design).
 // Speed/direction come from the hourly periods; gusts come from the raw
 // gridpoint time-series (km/h → mph), which the caller passes in. A gridpoint
 // failure only blanks the gust line — the rest of the card is unaffected.
@@ -398,6 +400,7 @@ export function renderHourly(
         <span class="hour-gust" aria-label="Gusts ${g !== null ? `${g} mph` : "unknown"}">${g !== null ? `G ${g}` : "—"}</span>`;
     }
     return `
+      ${weatherIcon(p)}
       <span class="hour-temp">${p.temperature}°</span>
       <span class="hour-precip">${p.probabilityOfPrecipitation?.value ?? 0}%</span>`;
   };
@@ -416,13 +419,6 @@ export function renderHourly(
         ${next24.map((p) => `
           <div class="hour-block" role="listitem">
             <span class="hour-time">${fmtTime(new Date(p.startTime))}</span>
-            <img
-              class="hour-icon"
-              src="${p.icon}"
-              alt="${p.shortForecast}"
-              width="40" height="40"
-              loading="lazy"
-            />
             ${hourValues(p)}
           </div>
         `).join("")}
