@@ -184,6 +184,15 @@ A multi-step epic to make the forecast comparison chart + AI brief more useful o
 - ✅ **Track A (A4) done (merged to `main` 2026-06-22):** GFS (American model) added alongside ECMWF — Open-Meteo layer now returns `OpenMeteoForecast[]`; chart draws one line per model (ECMWF cyan, GFS green); band spans all lines; GFS also folded into the brief. See `build-log.md`.
 - 🏁 **Epic COMPLETE** — D + A (incl. GFS) + B + C all live on V1 and V2.
 
+## Hourly card upgrade (2026-07-06, live on `main`)
+
+Two changes to the hourly strip, shared code so V1 and V2 both got them (branch `claude/weather-dashboard-forecast-toggles-l51148`, verified on a Vercel preview, then merged to `main`):
+
+- **Temp/Wind toggle:** two pill buttons (same styling as the chart's variable toggle, `.chart-var-btn` classes reused) under the "Hourly" title. Temp mode = the original card (condition icon + temperature + precip chance). Wind mode = rotated direction arrow + sustained speed with the gust ("G ##", mph) beneath — no condition icon in wind mode by design. State is `activeHourlyVar` in the shared store, fully independent of the chart's `activeChartVar`. Owner explicitly descoped Precip/Snow hourly modes: NWS gives hourly precip *chance* (already shown in temp mode) but amounts only in ~6-hour gridpoint blocks, awkward on an hourly strip.
+- **Gust data source:** the raw gridpoint feed's `windGust` time-series (km/h → mph), added to the existing `fetchGridpoint` call — zero new network requests. New `seriesValueAt()` helper in `src/shared/nws.ts` looks up the interval containing each hour. Gusts often span 3–6 h blocks, so consecutive hours legitimately show the same "G" value. A gridpoint failure only blanks the gust line ("—").
+- **Inline SVG condition icons:** the NWS icon PNGs were replaced with self-drawn line-art SVGs (`src/shared/weatherIcons.ts`, 12 Lucide-style glyphs incl. day/night variants, tinted `--fg-secondary` via `currentColor`). Glyph resolution: NWS icon-URL condition code (weather outranks sky cover on dual-condition URLs) → `shortForecast` keyword fallback → plain cloud. No cross-origin image requests anymore; an NWS icon-format change degrades to a cloud glyph, never a broken card. `NWSPeriod.icon` is still fetched/typed but no longer rendered anywhere.
+- **Verification harness:** `.claude/skills/verify/SKILL.md` records how to drive the built app locally with Playwright + mocked NWS responses (remote sandboxes block `api.weather.gov`).
+
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
 - `weather-forecast-overview.md` — locked spec doc with a "What changed during build" section appended at the end.

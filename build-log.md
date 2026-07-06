@@ -634,3 +634,51 @@ locations this means three independent lines (NWS + ECMWF + GFS).
 **Note.** Four lines + band on V1 (temp) is about the clutter ceiling for the
 "clean UI" priority — adding more models later (ICON, etc.) should be weighed
 against that. Verified on mobile; merged to `main` 2026-06-22.
+
+---
+
+## Hourly card upgrade — Temp/Wind toggle + SVG icons (2026-07-06)
+
+**What & why.** Owner asked for a variable toggle on the 24-hour hourly card
+like the comparison chart's, showing wind speed + gust + direction on a wind
+view. During planning Q&A the scope was refined: hourly precip/snow modes were
+dropped (NWS provides hourly precip *chance* — already on the temp view — but
+amounts only in ~6-hour gridpoint blocks, which display awkwardly per-hour),
+so the toggle is just **Temp | Wind**. Two follow-ups in the same branch: the
+NWS icon PNGs were replaced with cleaner inline SVG line icons on the temp
+view, and icons were removed from the wind view entirely.
+
+**Implementation.**
+- `HourlyVar` type + `activeHourlyVar` state + `setActiveHourlyVar` in the
+  shared store — independent of the chart's `activeChartVar`. Both render
+  layers pass it to `renderHourly`, which now also takes the gridpoint result.
+- Wind view per hour: rotated lavender arrow (`WIND_DIR_DEG`) + sustained
+  speed from the hourly period, gust below as "G ##". Gusts come from the raw
+  gridpoint `windGust` series (already fetched for snowfall/UV — zero new
+  requests), km/h → mph. New `seriesValueAt()` in `nws.ts` generalizes
+  `currentSeriesValue()` for the per-hour interval lookup. NWS publishes gusts
+  in 3–6 h blocks, so consecutive hours can show the same G value (data
+  granularity, not a bug). Missing gust data renders "—"; gridpoint failure
+  affects only the gust line.
+- `src/shared/weatherIcons.ts`: 12 stroke-style 24×24 glyphs (sun, moon,
+  cloud-sun, cloud-moon, cloud, fog, wind, rain, drizzle, snow, mix, storm)
+  drawn in the Lucide (ISC) line-art style, `currentColor`-tinted
+  (`--fg-secondary`). Glyph resolution: condition code parsed from the NWS
+  icon URL, matched in priority order (weather codes before sky-cover so
+  dual-condition URLs like "sct/rain" resolve to rain) → `shortForecast`
+  keyword fallback → plain cloud. Day/night from the period's `isDaytime`.
+  Removes ~25 cross-origin image requests per card render and immunizes the
+  card against NWS icon-server outages/format changes.
+- Toggle pills reuse the chart's `.chart-var-btn` CSS; click handlers are
+  scoped per region (`#hourly-region` vs `#chart-region`).
+
+**Verification.** Remote sandbox blocks `api.weather.gov`, so a Playwright
+harness (recipe persisted in `.claude/skills/verify/SKILL.md`) served the
+built app and mocked all NWS endpoints. Verified: temp view unchanged; wind
+view arrow/speed/gust incl. km/h→mph (40 km/h → G 25) and "10 to 15 mph" →
+"10–15"; toggle independence from the chart toggle; persistence across
+location tabs; no-gust fallback "—"; V2 `/shared` (non-CO location); 14
+condition fixtures incl. night (moon variants), dual-condition URL → rain,
+unknown code → cloud; zero `<img>` tags in temp view, zero icons in wind
+view. Owner verified both rounds on a Vercel preview; fast-forward merged to
+`main` 2026-07-06.
