@@ -18,6 +18,7 @@ export const subscribe = store.subscribe;
 export const setActiveLocation = store.setActiveLocation;
 export const setActiveView = store.setActiveView;
 export const setActiveChartVar = store.setActiveChartVar;
+export const setActiveHourlyVar = store.setActiveHourlyVar;
 export const updateLocationWeather = store.updateLocationWeather;
 export const updateCAIC = store.updateCAIC;
 export const updateTomer = store.updateTomer;

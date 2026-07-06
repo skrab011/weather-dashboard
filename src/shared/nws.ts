@@ -99,8 +99,9 @@ export async function fetchHourly(forecastHourlyUrl: string): Promise<NWSPeriod[
 // forecast endpoint, including snowfallAmount and uVIndex.
 //
 // UNIT NOTE: NWS gridpoint values use SI units.
-//   snowfallAmount → wmoUnit:m  (metres)  — we convert to inches on read
+//   snowfallAmount → wmoUnit:m     (metres) — we convert to inches on read
 //   uVIndex        → dimensionless
+//   windGust       → wmoUnit:km_h  (km/h)   — we convert to mph on display
 // ---------------------------------------------------------------------------
 export async function fetchGridpoint(gridpointUrl: string): Promise<NWSGridpoint> {
   const res = await nwsFetch(gridpointUrl);
@@ -111,6 +112,7 @@ export async function fetchGridpoint(gridpointUrl: string): Promise<NWSGridpoint
     // Fall back to empty values arrays if the field is absent (summer off-season)
     snowfallAmount: p.snowfallAmount ?? { uom: "wmoUnit:m", values: [] },
     uVIndex: p.uVIndex ?? { uom: "1", values: [] },
+    windGust: p.windGust ?? { uom: "wmoUnit:km_h", values: [] },
     elevationM: typeof p.elevation?.value === "number" ? p.elevation.value : undefined,
   };
 }
@@ -229,16 +231,24 @@ function parseInterval(validTime: string): ParsedInterval {
   return { start, endMs: start.getTime() + durationMs };
 }
 
+// Return the value whose time interval contains the given moment.
+// Used by the hourly strip to look up the gust forecast for each hour.
+export function seriesValueAt(
+  values: NWSTimeSeriesValue[],
+  timeMs: number,
+): number | null {
+  for (const v of values) {
+    const { start, endMs } = parseInterval(v.validTime);
+    if (start.getTime() <= timeMs && timeMs < endMs) return v.value;
+  }
+  return null;
+}
+
 // Return the value whose time interval contains right now.
 export function currentSeriesValue(
   values: NWSTimeSeriesValue[],
 ): number | null {
-  const now = Date.now();
-  for (const v of values) {
-    const { start, endMs } = parseInterval(v.validTime);
-    if (start.getTime() <= now && now < endMs) return v.value;
-  }
-  return null;
+  return seriesValueAt(values, Date.now());
 }
 
 // Sum values whose intervals overlap the next `hours` hours from now.

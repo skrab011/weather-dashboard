@@ -18,6 +18,7 @@ import type {
   CAICZoneData,
   ChartVar,
   ConsensusBrief,
+  HourlyVar,
   Location,
   LocationAirQuality,
   LocationWeather,
@@ -71,6 +72,7 @@ export interface Store {
   setActiveLocation(index: number): void;
   setActiveView(view: ViewMode): void;
   setActiveChartVar(variable: ChartVar): void;
+  setActiveHourlyVar(variable: HourlyVar): void;
   updateLocationWeather(locationId: string, weather: LocationWeather): void;
   updateCAIC(data: CAICZoneData): void;
   updateTomer(data: SourceResult<TomerVideo>): void;
@@ -89,6 +91,7 @@ export function createStore(locations: Location[]): Store {
     activeLocation: 0,
     activeView: "hourly",
     activeChartVar: "temp",
+    activeHourlyVar: "temp",
     weather,
     caic:  emptyCAICZoneData(),
     tomer: emptyResult<TomerVideo>(),
@@ -122,6 +125,11 @@ export function createStore(locations: Location[]): Store {
 
     setActiveChartVar(variable: ChartVar): void {
       state.activeChartVar = variable;
+      notify();
+    },
+
+    setActiveHourlyVar(variable: HourlyVar): void {
+      state.activeHourlyVar = variable;
       notify();
     },
 

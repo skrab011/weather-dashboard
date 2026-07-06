@@ -158,7 +158,7 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
     renderAlerts(weather.alerts);
     renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes, weather.airQuality, showPaTemp);
     renderAirQuality(weather.airQuality);
-    renderHourly(weather.hourly);
+    renderHourly(weather.hourly, weather.gridpoint, state.activeHourlyVar, store.setActiveHourlyVar);
     renderForecast(weather.forecast);
 
     // Brief refresh refetches for the ACTIVE location (per-location cache key +

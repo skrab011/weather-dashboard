@@ -62,6 +62,10 @@ export interface NWSGridpoint {
     uom: string;                   // dimensionless
     values: NWSTimeSeriesValue[];
   };
+  windGust: {
+    uom: string;                   // typically "wmoUnit:km_h" (km/h — we convert to mph)
+    values: NWSTimeSeriesValue[];
+  };
   elevationM?: number;             // metres above sea level — present in most gridpoint responses
 }
 
@@ -161,6 +165,10 @@ export type ViewMode = "hourly" | "7day";
 // only (NWS's hourly feed gives precip *probability*, not an amount).
 export type ChartVar = "temp" | "wind" | "precip" | "snow";
 
+// Which variable the hourly strip shows. "temp" is the original card
+// (temperature + precip chance); "wind" shows direction arrow + speed + gust.
+export type HourlyVar = "temp" | "wind";
+
 // ---------------------------------------------------------------------------
 // CAIC types — Colorado Avalanche Information Center
 //
@@ -253,6 +261,7 @@ export interface AppState {
   activeLocation: 0 | 1;
   activeView: ViewMode;
   activeChartVar: ChartVar;                  // which variable the chart plots
+  activeHourlyVar: HourlyVar;                // which variable the hourly strip shows
   weather: Record<string, LocationWeather>; // keyed by Location.id
   caic: CAICZoneData;                        // zone-wide, shared across locations
   tomer: SourceResult<TomerVideo>;           // zone-wide, not per-location

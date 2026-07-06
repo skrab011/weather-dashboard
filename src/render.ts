@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 
 import { LOCATIONS } from "./locations";
-import { state, setActiveLocation, setActiveView, setActiveChartVar, updateBrief } from "./store";
+import { state, setActiveLocation, setActiveView, setActiveChartVar, setActiveHourlyVar, updateBrief } from "./store";
 import { fetchBrief } from "./shared/brief";
 import {
   skeletonCard,
@@ -127,7 +127,7 @@ export function renderAll(): void {
   renderAlerts(weather.alerts);
   renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes, weather.airQuality, showPaTemp);
   renderAirQuality(weather.airQuality);
-  renderHourly(weather.hourly);
+  renderHourly(weather.hourly, weather.gridpoint, state.activeHourlyVar, setActiveHourlyVar);
   renderForecast(weather.forecast);
   const nwsElevFt = weather.gridpoint.data?.elevationM != null
     ? Math.round(weather.gridpoint.data.elevationM * 3.28084)

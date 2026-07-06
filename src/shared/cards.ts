@@ -19,6 +19,7 @@ import type {
   CAICWeatherSummary,
   ChartVar,
   ConsensusBrief,
+  HourlyVar,
   LocationAirQuality,
   NWSAlert,
   NWSGridpoint,
@@ -28,7 +29,7 @@ import type {
   SunTimes,
   TomerVideo,
 } from "./types";
-import { currentSeriesValue, sumSeriesNextHours } from "./nws";
+import { currentSeriesValue, seriesValueAt, sumSeriesNextHours } from "./nws";
 import { renderOverlayChart } from "./chart";
 
 // ---------------------------------------------------------------------------
@@ -341,8 +342,21 @@ export function renderSparkline(trend: (number | null)[], flagged: boolean): str
 
 // ---------------------------------------------------------------------------
 // Hourly forecast strip — next 24 hours, horizontally scrollable.
+//
+// A Temp/Wind toggle (same pill styling as the chart's variable toggle) swaps
+// what each hour block shows:
+//   temp — temperature + precip chance (the original card, unchanged)
+//   wind — direction arrow + sustained speed, with the gust ("G ##") below.
+// Speed/direction come from the hourly periods; gusts come from the raw
+// gridpoint time-series (km/h → mph), which the caller passes in. A gridpoint
+// failure only blanks the gust line — the rest of the card is unaffected.
 // ---------------------------------------------------------------------------
-export function renderHourly(result: SourceResult<NWSPeriod[]>): void {
+export function renderHourly(
+  result: SourceResult<NWSPeriod[]>,
+  gridResult: SourceResult<NWSGridpoint>,
+  activeVar: HourlyVar,
+  onSelectVar: (variable: HourlyVar) => void,
+): void {
   const el = document.getElementById("hourly-region")!;
 
   if (!result.data && !result.error && !result.lastGoodData) {
@@ -364,9 +378,40 @@ export function renderHourly(result: SourceResult<NWSPeriod[]>): void {
   const cutoff  = Date.now() + 24 * 3_600_000;
   const next24  = periods.filter((p) => new Date(p.startTime).getTime() < cutoff);
 
+  const gust = (gridResult.data ?? gridResult.lastGoodData)?.windGust;
+  const gustMphAt = (iso: string): number | null => {
+    if (!gust) return null;
+    const v = seriesValueAt(gust.values, new Date(iso).getTime());
+    if (v === null) return null;
+    return Math.round(gust.uom.includes("km_h") ? v * 0.621371 : v);
+  };
+
+  const hourValues = (p: NWSPeriod): string => {
+    if (activeVar === "wind") {
+      const deg = WIND_DIR_DEG[p.windDirection];
+      const arrow = deg !== undefined
+        ? `<span class="wind-arrow" style="transform:rotate(${deg}deg)" aria-hidden="true">↑</span>`
+        : "";
+      const g = gustMphAt(p.startTime);
+      return `
+        <span class="hour-wind" aria-label="Wind ${p.windDirection} ${p.windSpeed}">${arrow}${windMph(p.windSpeed)}</span>
+        <span class="hour-gust" aria-label="Gusts ${g !== null ? `${g} mph` : "unknown"}">${g !== null ? `G ${g}` : "—"}</span>`;
+    }
+    return `
+      <span class="hour-temp">${p.temperature}°</span>
+      <span class="hour-precip">${p.probabilityOfPrecipitation?.value ?? 0}%</span>`;
+  };
+
+  const varBtn = (v: HourlyVar, label: string) =>
+    `<button class="chart-var-btn${activeVar === v ? " chart-var-btn--active" : ""}" data-hourly-var="${v}">${label}</button>`;
+
   el.innerHTML = `
     <section class="card view-hourly${result.error ? " card--error" : ""}">
       <h2 class="card-title">Hourly</h2>
+      <div class="chart-var-toggle" role="group" aria-label="Hourly variable">
+        ${varBtn("temp", "Temp")}
+        ${varBtn("wind", "Wind")}
+      </div>
       <div class="hourly-strip" role="list">
         ${next24.map((p) => `
           <div class="hour-block" role="listitem">
@@ -378,14 +423,20 @@ export function renderHourly(result: SourceResult<NWSPeriod[]>): void {
               width="40" height="40"
               loading="lazy"
             />
-            <span class="hour-temp">${p.temperature}°</span>
-            <span class="hour-precip">${p.probabilityOfPrecipitation?.value ?? 0}%</span>
+            ${hourValues(p)}
           </div>
         `).join("")}
       </div>
       ${cardFooter(result.lastUpdated ?? result.lastGoodUpdated, result.error)}
     </section>
   `;
+
+  el.querySelectorAll<HTMLButtonElement>(".chart-var-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.dataset.hourlyVar as HourlyVar | undefined;
+      if (v && v !== activeVar) onSelectVar(v);
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------

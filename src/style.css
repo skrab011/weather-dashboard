@@ -471,6 +471,22 @@ body {
   color: var(--info);
 }
 
+/* Wind mode: arrow + sustained speed on the main line, gust ("G ##") below */
+.hour-wind {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hour-gust {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* =========================================================================
    7-day forecast list
    Columns: date | temp | outlook | wind | precip%
