@@ -14,6 +14,7 @@
 // location.
 // ---------------------------------------------------------------------------
 
+import { inject } from '@vercel/analytics';
 import "./style.css";
 import "./shared-page/style.css";
 import { fetchPoints, fetchAllForLocation } from "./shared/nws";
@@ -172,6 +173,7 @@ function start(): void {
   }
 }
 
+inject();
 start();
 
 // Register service worker for offline caching.

@@ -10,6 +10,7 @@
 //   6. Fetch CAIC data in parallel with the per-location fetches
 // ---------------------------------------------------------------------------
 
+import { inject } from '@vercel/analytics';
 import "./style.css";
 import { LOCATIONS } from "./locations";
 import { fetchPoints, fetchAllForLocation } from "./shared/nws";
@@ -127,6 +128,7 @@ async function boot(): Promise<void> {
   ]);
 }
 
+inject();
 boot();
 
 // Register service worker for offline caching.
