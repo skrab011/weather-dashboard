@@ -682,3 +682,37 @@ condition fixtures incl. night (moon variants), dual-condition URL → rain,
 unknown code → cloud; zero `<img>` tags in temp view, zero icons in wind
 view. Owner verified both rounds on a Vercel preview; fast-forward merged to
 `main` 2026-07-06.
+
+## Humidity on the Now card (2026-07-11)
+
+Owner noticed humidity was never displayed anywhere despite being one of the
+most basic weather readings — the app was already *receiving* it in two
+places (PurpleAir sensors report it for the EPA PM2.5 correction; the NWS
+hourly feed includes per-hour `relativeHumidity`) but never showing it.
+
+**Decision (owner):** Now card only, one row between Wind and Sunrise.
+Prefer the PurpleAir reading when sensors are within 4 miles; fall back to
+NWS otherwise. Hourly-strip and chart-variable versions considered and
+descoped (clutter).
+
+**Implementation** (branch `claude/weather-app-humidity-zwjvva`):
+- `api/air-quality.ts`: new `humidityPct` in the response — average of raw
+  sensor RH across valid sensors, then `correctHumidity()` (+4 percentage
+  points, clamped to 100). PurpleAir documents the enclosure self-heating
+  drying the sampled air by ~4% RH, mirroring the −8°F temp offset. The EPA
+  PM2.5 correction deliberately keeps using RAW RH (the EPA regression was
+  derived from raw sensor values). Unlike `tempF`, `humidityPct` is NOT
+  gated by `showTemp` — returned for any location with sensors, so V1 office
+  and V2 locations get the PA reading too. Null when no sensors nearby.
+- `src/shared/types.ts`: `relativeHumidity?: { value }` added to `NWSPeriod`
+  (optional — hourly periods always have it; 7-day periods may not);
+  `humidityPct` added to `LocationAirQuality`.
+- `src/shared/cards.ts` (`renderConditions`): Humidity row after Wind,
+  `aq?.humidityPct ?? now?.relativeHumidity?.value` — the `??` chain also
+  covers stale cached air-quality objects that predate the field. Zero new
+  network requests anywhere.
+
+**Verification.** Playwright harness (`.claude/skills/verify` recipe): 10/10
+checks — PA value (41%) preferred over NWS (55%) when present; NWS fallback
+when `humidityPct` is null AND when `/api/air-quality` 500s entirely; row
+order Wind < Humidity < Sunrise; all on both V1 `/` and V2 `/shared`.

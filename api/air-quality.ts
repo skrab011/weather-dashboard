@@ -129,6 +129,20 @@ function correctTempF(rawF: number): number {
   return rawF - 8;
 }
 
+// ---------------------------------------------------------------------------
+// PurpleAir humidity correction.
+//
+// The same self-heating that raises the temperature reading dries the air
+// inside the sensor enclosure, so the reported relative humidity runs low.
+// PurpleAir documents ~4 percentage points below ambient as the standard
+// offset for their hardware. Add to get ambient; clamp to the valid 0–100%
+// range. NOTE: display-only — the EPA PM2.5 correction above intentionally
+// uses the RAW sensor humidity, as the EPA regression was derived from it.
+// ---------------------------------------------------------------------------
+function correctHumidity(rawPct: number): number {
+  return Math.min(100, rawPct + 4);
+}
+
 // Typed shape of one unpacked PurpleAir sensor row
 interface PASensor {
   sensor_index: number;
@@ -210,11 +224,14 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   let pm25: number | null = null;
   let trend: (number | null)[] = [null, null, null, null, null];
   let tempF: number | null = null;
+  let humidityPct: number | null = null;
   let sensorCount = 0;
   let purpleAirError: string | null = null;
 
   if (paResult.status === "fulfilled") {
-    ({ pm25, trend, tempF, sensorCount } = paResult.value);
+    ({ pm25, trend, tempF, humidityPct, sensorCount } = paResult.value);
+    // showTemp gates only the temperature (spec: hyperlocal temp for home
+    // only). Humidity is returned for any location with nearby sensors.
     if (!showTemp) tempF = null;
   } else {
     purpleAirError = String(paResult.reason);
@@ -244,6 +261,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     pm25,
     trend,
     tempF,
+    humidityPct,
     airnowPm25,
     divergent,
     sensorCount,
@@ -260,6 +278,7 @@ interface PAProcessed {
   pm25: number | null;
   trend: (number | null)[];
   tempF: number | null;
+  humidityPct: number | null;
   sensorCount: number;
 }
 
@@ -339,7 +358,7 @@ async function fetchPurpleAir(lat: number, lon: number, apiKey: string): Promise
   });
 
   if (valid.length === 0) {
-    return { pm25: null, trend: [null, null, null, null, null], tempF: null, sensorCount: 0 };
+    return { pm25: null, trend: [null, null, null, null, null], tempF: null, humidityPct: null, sensorCount: 0 };
   }
 
   // Average humidity across valid sensors (used in EPA correction for all values)
@@ -381,7 +400,15 @@ async function fetchPurpleAir(lat: number, lon: number, apiKey: string): Promise
     ? correctTempF(rawTemps.reduce((s, v) => s + v, 0) / rawTemps.length)
     : null;
 
-  return { pm25, trend, tempF, sensorCount: valid.length };
+  // Average humidity across sensors that actually reported one (no 50%
+  // placeholder here — that substitution is only for the EPA correction),
+  // then apply the +4% enclosure-drying correction for display.
+  const rawHums = valid.map((s) => s.humidity).filter((h): h is number => h !== null);
+  const humidityPct = rawHums.length > 0
+    ? correctHumidity(rawHums.reduce((s, v) => s + v, 0) / rawHums.length)
+    : null;
+
+  return { pm25, trend, tempF, humidityPct, sensorCount: valid.length };
 }
 
 // ---------------------------------------------------------------------------

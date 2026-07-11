@@ -184,6 +184,20 @@ export function renderConditions(
     `);
   }
 
+  // Humidity — prefer the PurpleAir sensor average when sensors are nearby
+  // (the API returns humidityPct: null when none are), fall back to the NWS
+  // hourly value. ?? also covers cached air-quality objects that predate
+  // the humidityPct field (undefined).
+  const humidity = aq?.humidityPct ?? now?.relativeHumidity?.value ?? null;
+  if (humidity !== null) {
+    rows.push(`
+      <div class="cond-row">
+        <span class="cond-label">Humidity</span>
+        <span class="cond-value">${Math.round(humidity)}%</span>
+      </div>
+    `);
+  }
+
   if (uvNow !== null) {
     rows.push(`
       <div class="cond-row">

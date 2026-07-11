@@ -41,6 +41,9 @@ export interface NWSPeriod {
   detailedForecast: string;
   icon: string;              // URL to NWS weather icon PNG
   probabilityOfPrecipitation: { value: number | null };
+  // % relative humidity. Present on hourly periods; optional because the
+  // 7-day endpoint doesn't always include it.
+  relativeHumidity?: { value: number | null };
 }
 
 // One entry in a NWS time-series value array.
@@ -127,6 +130,12 @@ export interface LocationAirQuality {
   // Corrected PA temperature (raw − 8°F). Populated for home location only;
   // null for office (spec: hyperlocal temp for home only).
   tempF: number | null;
+
+  // Corrected PA relative humidity (raw + 4%, clamped to 100), averaged across
+  // valid nearby sensors. null when no sensors are within range. Unlike tempF
+  // this is returned for ANY location with sensors — the UI prefers it over
+  // the NWS value and falls back to NWS when it is null.
+  humidityPct: number | null;
 
   // AirNow PM2.5 reading from the nearest official EPA monitor (within 25 mi).
   airnowPm25: number | null;

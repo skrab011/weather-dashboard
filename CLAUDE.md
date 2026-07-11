@@ -54,7 +54,7 @@ Priority order for tradeoffs:
 | **NWS** (api.weather.gov) | Hourly + 7-day forecast, both locations; active alerts (winter storm, red flag/fire, air quality) | Free, no key. The backbone — must be rock solid. |
 | **CAIC** | Weather Summary write-up (year-round) + numerical point-forecast data (Highcharts JSON feed) | Write-up always shows "Issued by / day, date, time" for freshness. No Avalanche Forecast panel. Undocumented feed — wrap in failure isolation. Point-forecast elevation: **9,219 ft** (derived from live looper data). |
 | **Chris Tomer (YouTube)** | Latest "Mountain Weather Update" video description text | No transcription, no AI summary — explicitly descoped. Filter to videos with "Mountain Weather Update" in title. |
-| **PurpleAir** | Hyperlocal temp (home only) + PM2.5 (both locations) | 4-mile averaging radius. Temp uses published correction offset, shown side-by-side with NWS temp. PM2.5 is EPA-smoke-corrected. |
+| **PurpleAir** | Hyperlocal temp (home only) + PM2.5 (both locations) + humidity (any location with sensors) | 4-mile averaging radius. Temp uses published correction offset, shown side-by-side with NWS temp. PM2.5 is EPA-smoke-corrected. Humidity (Now card, added 2026-07-11) uses the published +4% enclosure-drying offset (display only — the EPA PM2.5 correction still uses raw RH); falls back to NWS hourly `relativeHumidity` when no sensors are nearby. |
 | **AirNow** (EPA) | Official PM2.5 monitor reading | Cross-check vs. PurpleAir. Flag PM2.5 red when sources differ by **>10% AND >5 µg/m³**. |
 
 ### Overlay chart + consensus brief
