@@ -802,3 +802,12 @@ greeting. Two changes in `api/radio.ts`:
 - *Warmth:* instructions rewritten — longtime local drive-time host chatting
   with regulars, relaxed pace, natural rhythm/pitch variation, "never flat,
   stiff, or robotic", warm lean into the greeting.
+
+**Audio tuning round 2 (2026-07-12, owner feedback).** Instructions approved;
+owner asked for 1.10x speed. OpenAI's `speed` parameter is ignored by
+`gpt-4o-mini-tts`, so implemented client-side instead:
+`audio.playbackRate = 1.1` (`RADIO_PLAYBACK_RATE` in `src/shared/cards.ts`),
+set immediately before every `play()` call because loading a new `src` can
+reset the rate. Browsers preserve pitch at moderate rates. Verified at
+runtime via the Playwright harness (rate is 1.1 during playback; button
+states unaffected).
