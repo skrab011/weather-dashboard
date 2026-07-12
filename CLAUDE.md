@@ -72,6 +72,7 @@ All keys live in Vercel environment variables (runtime) and in `.env` (local dev
 | `YOUTUBE_API_KEY` | `api/tomer.ts` |
 | `ANTHROPIC_API_KEY` | `api/brief.ts` |
 | `BLOB_READ_WRITE_TOKEN` | `api/brief.ts` (Vercel Blob for brief cache) |
+| `OPENAI_API_KEY` | **PLANNED, not yet provisioned** — `api/radio.ts` (Radio Forecast TTS; see `radio-forecast-plan.md` §4 for the owner's setup steps) |
 
 ## Design system
 
@@ -193,7 +194,14 @@ Two changes to the hourly strip, shared code so V1 and V2 both got them (branch 
 - **Inline SVG condition icons:** the NWS icon PNGs were replaced with self-drawn line-art SVGs (`src/shared/weatherIcons.ts`, 12 Lucide-style glyphs incl. day/night variants, tinted `--fg-secondary` via `currentColor`). Glyph resolution: NWS icon-URL condition code (weather outranks sky cover on dual-condition URLs) → `shortForecast` keyword fallback → plain cloud. No cross-origin image requests anymore; an NWS icon-format change degrades to a cloud glyph, never a broken card. `NWSPeriod.icon` is still fetched/typed but no longer rendered anywhere.
 - **Verification harness:** `.claude/skills/verify/SKILL.md` records how to drive the built app locally with Playwright + mocked NWS responses (remote sandboxes block `api.weather.gov`).
 
+## Next feature — Radio Forecast (planned 2026-07-12, not yet built)
+
+A **"🎙 Radio" button on the V1 Consensus Brief card** that reads the current brief aloud in the style of a radio weather announcer, via OpenAI text-to-speech (`gpt-4o-mini-tts`, ~$0.01 per generation). Full implementation plan, locked decisions, API/blob specs, and the owner's OpenAI-key setup steps live in **`radio-forecast-plan.md`** — the implementing session should follow that doc; all design decisions in it are already made and agreed with the owner.
+
+Summary of the locked shape: generation is **on-click only** (not with every brief); the new `api/radio.ts` reads the *cached brief from Blob* server-side (never accepts text from the client — abuse guard); MP3s are cached in Vercel Blob keyed to a SHA-256 hash of the brief text; V1 only (button passed as an optional param to `renderBrief`, V2 untouched); requires a new `OPENAI_API_KEY` env var the owner must provision first (see plan §4). Verify on a Vercel preview deploy — including on the owner's real iPhone (iOS audio-gesture rule) — before merging to `main`.
+
 ## Notes
 - `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
 - `weather-forecast-overview.md` — locked spec doc with a "What changed during build" section appended at the end.
 - `build-log.md` — detailed record of workstream decisions, bugs encountered, and solutions.
+- `radio-forecast-plan.md` — implementation plan for the next feature (Radio Forecast TTS button); see "Next feature" section above.
