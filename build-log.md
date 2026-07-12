@@ -774,3 +774,16 @@ requests, and production audio lives on `*.blob.vercel-storage.com`
 (cross-origin), so the SW never touches it. Harness fix: stub
 `navigator.serviceWorker.register` with a never-resolving promise via
 `addInitScript` (recorded in `.claude/skills/verify/SKILL.md`).
+
+**Preview verification & ship (2026-07-12).** First owner test failed with
+"Unavailable" on both iPhone and desktop — `/api/radio` returned
+`BLOB_READ_WRITE_TOKEN is not set`. Root cause: the token was provisioned
+through the Blob store *connection* for Production only, so preview
+deployments never had it (and it doesn't appear as a normal row in Settings →
+Environment Variables — it lives under the Storage connection). The brief
+card had always masked this on previews by silently regenerating without
+cache; radio was the first feature to hard-require Blob. Owner added the
+token for the Preview environment, an empty commit triggered a redeploy, and
+all checklist items passed (iPhone + desktop audio, stop/replay, cache hit,
+V2 clean). Merged to `main` 2026-07-12. Owner has follow-up thoughts on
+tuning the audio delivery (voice / `instructions` string in `api/radio.ts`).
