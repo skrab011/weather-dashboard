@@ -1,6 +1,6 @@
 # Weather Dashboard — Build Log
 
-*Detailed record of workstream decisions, bugs encountered, and solutions. Organized by workstream. See `CLAUDE.md` for the current working reference and `weather-forecast-overview.md` for the original spec.*
+*Detailed record of workstream decisions, bugs encountered, and solutions. Organized by workstream. See `CLAUDE.md` for the current working reference and `archive/weather-forecast-overview.md` for the original spec.*
 
 ---
 
@@ -400,7 +400,7 @@ Labels are stored in `localStorage` at search time; previously saved locations r
 
 A multi-step epic to make the forecast comparison chart and AI brief more
 useful for both V1 and V2. Full plan, sequencing, and per-step session prompts
-live in `forecast-upgrade-plan.md`. Tracks: **D** (AFD → brief), **A**
+live in `archive/forecast-upgrade-plan.md`. Tracks: **D** (AFD → brief), **A**
 (Open-Meteo / ECMWF model series on the chart — the keystone), **B**
 (disagreement-highlight band), **C** (Temp/Wind/… variable toggle). Order:
 **D → A → B → C**. Rollout: build in the shared engine, prove on V1 first

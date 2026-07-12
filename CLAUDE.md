@@ -59,7 +59,7 @@ Priority order for tradeoffs:
 
 ### Overlay chart + consensus brief
 - Chart: NWS + CAIC + ECMWF + GFS (Open-Meteo) on shared axes with a shaded model-disagreement band and a Temp/Wind/Precip/Snow variable toggle. Temp & wind draw all sources; precip & snow draw amounts (inches) from CAIC + ECMWF + GFS only (NWS gives precip probability, not amount). ECMWF cyan, GFS green. Elevation labeled per series in temp mode. NWS elevation: ~9,035 ft; CAIC elevation: 9,219 ft; ECMWF elevation from the live Open-Meteo grid cell. (ECMWF line + band + toggle added 2026-06-22 — Tracks A/B/C.)
-- Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC + the latest NWS Area Forecast Discussion (AFD) + ECMWF (Open-Meteo) hourly temps, returns 3–5 sentence plain-prose summary with forecaster jargon translated to plain language and a plain-language note on where the models agree/diverge. Cached in Vercel Blob. Manual refresh button on the card. (AFD + ECMWF added 2026-06-22 — see "Forecast comparison upgrade" below and `forecast-upgrade-plan.md`.)
+- Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC + the latest NWS Area Forecast Discussion (AFD) + ECMWF (Open-Meteo) hourly temps, returns 3–5 sentence plain-prose summary with forecaster jargon translated to plain language and a plain-language note on where the models agree/diverge. Cached in Vercel Blob. Manual refresh button on the card. (AFD + ECMWF added 2026-06-22 — see "Forecast comparison upgrade" below and `archive/forecast-upgrade-plan.md`.)
 
 ## API keys (all provisioned)
 
@@ -127,12 +127,12 @@ The CAIC looper (`looper.avalanche.state.co.us`) encodes Mountain local time as 
 
 ## V2 — Shared page (complete and deployed)
 
-A **second, separate page** (`shared.html` → `/shared`) for friends/family to enter their own US locations. Live at `https://weather-dashboard-five-umber.vercel.app/shared`. Planning docs:
+A **second, separate page** (`shared.html` → `/shared`) for friends/family to enter their own US locations. Live at `https://weather-dashboard-five-umber.vercel.app/shared`. Planning docs (build complete — all four now in `archive/`):
 
-- `v2-overview.md` — what V2 is, architecture (two pages / one shared engine), locked decisions.
-- `v2-instructions.md` — working rules for the V2 build (V1 regression rule, git workflow, constraints).
-- `v2-plan.md` — step-by-step workstreams (W0–W8), all complete.
-- `v2-prompts.md` — copy-paste build prompts used during the build (now archived — V2 is on `main`).
+- `archive/v2-overview.md` — what V2 is, architecture (two pages / one shared engine), locked decisions.
+- `archive/v2-instructions.md` — working rules for the V2 build (V1 regression rule, git workflow, constraints).
+- `archive/v2-plan.md` — step-by-step workstreams (W0–W8), all complete.
+- `archive/v2-prompts.md` — copy-paste build prompts used during the build.
 
 **Locked decisions (owner Q&A 2026-06-18):**
 1. Same repo, **same Vercel project** — multi-page Vite build (`index.html` + `shared.html`), one `/api/` layer, one set of env vars.
@@ -170,9 +170,9 @@ A **second, separate page** (`shared.html` → `/shared`) for friends/family to 
   - Labels are stored in `localStorage` at search time; previously saved locations keep their old label until the user re-searches or removes and re-adds.
 - **V2 color palette (2026-06-19):** At a family member's request, V2's background was lightened. V2 now uses its own color palette defined in `src/shared-page/style.css` — a neutral dark gray bg (`#292929`) with neutral-cool surface tokens, distinct from V1's near-black blue-tinted palette. V1 colors are unchanged. V2 tokens: `--bg: #292929`, `--surface: #34363b`, `--surface-raised: #3d4047`, `--border: #46494f`, `--accent-dim: #3a2a62`. `--muted` is also overridden to `#8a95a8` (from V1's `#6b7280`) — the lighter surface dropped the original value to ~2:1 contrast, making small text like hourly times and card timestamps unreadable.
 
-## Forecast comparison upgrade (in progress, started 2026-06-22)
+## Forecast comparison upgrade (complete 2026-06-22)
 
-A multi-step epic to make the forecast comparison chart + AI brief more useful on both V1 and V2. Full plan, sequencing, per-step session prompts, and the rollout/test strategy live in `forecast-upgrade-plan.md`. Tracks and order: **D** (AFD → brief) → **A** (Open-Meteo / ECMWF model series on the chart — the keystone) → **B** (disagreement-highlight band) → **C** (Temp/Wind/… variable toggle).
+A multi-step epic to make the forecast comparison chart + AI brief more useful on both V1 and V2. Full plan, sequencing, per-step session prompts, and the rollout/test strategy live in `archive/forecast-upgrade-plan.md`. Tracks and order: **D** (AFD → brief) → **A** (Open-Meteo / ECMWF model series on the chart — the keystone) → **B** (disagreement-highlight band) → **C** (Temp/Wind/… variable toggle).
 
 - **Rollout rule:** the chart is shared code (`src/shared/chart.ts` / `cards.ts`), so every change is built in the shared engine, made additive with V1-preserving defaults, proven on V1 first (always in CO = richest test), confirmed on V2, then merged to `main` per verified step. Test on a Vercel **preview** deploy off branch `claude/epic-wright-jx6ho7` before merging to `main`.
 - **New free, keyless data sources introduced by this epic:** NWS AFD (`api.weather.gov/products`) and Open-Meteo (`api.open-meteo.com`, ECMWF/GFS/etc.). Both are CORS-friendly and follow the NWS direct-from-browser pattern (no serverless proxy); the brief's AFD call is server-side inside `api/brief.ts`.
@@ -201,7 +201,6 @@ A **"🎙 Radio" button on the V1 Consensus Brief card** that reads the current 
 Summary of the locked shape: generation is **on-click only** (not with every brief); the new `api/radio.ts` reads the *cached brief from Blob* server-side (never accepts text from the client — abuse guard); MP3s are cached in Vercel Blob keyed to a SHA-256 hash of the brief text; V1 only (button passed as an optional param to `renderBrief`, V2 untouched); requires a new `OPENAI_API_KEY` env var the owner must provision first (see plan §4). Verify on a Vercel preview deploy — including on the owner's real iPhone (iOS audio-gesture rule) — before merging to `main`.
 
 ## Notes
-- `weather-pwa-planning.md` — earliest planning/feedback doc; some decisions were superseded by `weather-forecast-overview.md`. Treat the overview as source of truth where they differ.
-- `weather-forecast-overview.md` — locked spec doc with a "What changed during build" section appended at the end.
 - `build-log.md` — detailed record of workstream decisions, bugs encountered, and solutions.
 - `radio-forecast-plan.md` — implementation plan for the next feature (Radio Forecast TTS button); see "Next feature" section above.
+- `archive/` — completed planning and spec docs, kept for history (original V1 spec + earliest planning doc, the four V2 build docs, the forecast-comparison epic plan, and the 2026-07-06 design-feedback bundle). See `archive/README.md` for what each file was. If an archived doc contradicts this file, this file wins. Notable: `archive/weather-forecast-overview.md` is the original locked V1 spec (source of truth over `archive/weather-pwa-planning.md` where they differ).

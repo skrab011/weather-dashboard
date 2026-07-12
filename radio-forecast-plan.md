@@ -197,7 +197,7 @@ planned to provisioned in the keys table) and append the as-built record to
 
 ## 6. Rollout & testing
 
-Same discipline as every prior feature (see `forecast-upgrade-plan.md` §2):
+Same discipline as every prior feature (see `archive/forecast-upgrade-plan.md` §2):
 
 1. Build on a feature branch; push it so Vercel creates a **preview deploy**.
    Do not touch `main` until the owner has verified on the preview URL.

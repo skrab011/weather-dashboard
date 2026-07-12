@@ -1,6 +1,6 @@
 # Weather Dashboard
 
-Personal weather-consolidation PWA for Colorado locations. See `CLAUDE.md` for the locked spec and build plan.
+Personal weather-consolidation PWA for Colorado locations. See `CLAUDE.md` for the current project reference; completed planning/spec docs live in `archive/`.
 
 ## Live app
 
@@ -13,8 +13,8 @@ Personal weather-consolidation PWA for Colorado locations. See `CLAUDE.md` for t
 
 - Locations are stored in `localStorage` (`weather-shared-locations-v1`) — no server-side account.
 - US locations only (geocoder validates against a US bounding box).
-- Colorado locations show all cards (CAIC weather summary, overlay chart, Mountain Weather Update video). Non-Colorado locations hide those three cards and show a plain NWS forecast brief instead of a consensus brief.
-- `/shared` is not independently installable as a PWA — V1's manifest scopes to `/` and covers the installed app.
+- Colorado locations show all cards. Non-Colorado locations hide the CAIC weather summary and Mountain Weather Update video, and show a plain NWS "Forecast Brief" instead of a consensus brief. The forecast-comparison chart is shown for all locations (NWS + ECMWF + GFS everywhere; CAIC added in Colorado).
+- `/shared` is independently installable as a PWA (its own `manifest-shared.json`, `scope: /shared`, added 2026-06-20).
 
 ## Local dev
 
