@@ -72,7 +72,7 @@ All keys live in Vercel environment variables (runtime) and in `.env` (local dev
 | `YOUTUBE_API_KEY` | `api/tomer.ts` |
 | `ANTHROPIC_API_KEY` | `api/brief.ts` |
 | `BLOB_READ_WRITE_TOKEN` | `api/brief.ts` (Vercel Blob for brief cache) |
-| `OPENAI_API_KEY` | **PLANNED, not yet provisioned** — `api/radio.ts` (Radio Forecast TTS; see `radio-forecast-plan.md` §4 for the owner's setup steps) |
+| `OPENAI_API_KEY` | `api/radio.ts` (Radio Forecast TTS) |
 
 ## Design system
 
@@ -124,6 +124,7 @@ The CAIC looper (`looper.avalanche.state.co.us`) encodes Mountain local time as 
 2. **NWS API outages** — occasional multi-hour incidents. App falls back to last-good data automatically.
 3. **Vercel Blob token expiry** — if `BLOB_READ_WRITE_TOKEN` lapses, brief still generates but isn't cached; every page load after CDN expiry triggers a fresh AI call (cost impact). Check Vercel dashboard if brief card feels slow on every load.
 4. **YouTube API quota** — 10,000 units/day free quota. Ample for personal use; only a concern if the key is ever leaked.
+5. **OpenAI key / credit for the radio button** — if `OPENAI_API_KEY` lapses or the prepaid credit runs out, the 🎙 Radio button shows "Unavailable" but the brief card is otherwise unaffected. Fix is topping up billing at https://platform.openai.com — nothing in the app needs changing. Radio also requires a *cached* brief in Blob, so a lapsed `BLOB_READ_WRITE_TOKEN` (fragility #3) breaks it too; fixing the token fixes both.
 
 ## V2 — Shared page (complete and deployed)
 
@@ -194,13 +195,13 @@ Two changes to the hourly strip, shared code so V1 and V2 both got them (branch 
 - **Inline SVG condition icons:** the NWS icon PNGs were replaced with self-drawn line-art SVGs (`src/shared/weatherIcons.ts`, 12 Lucide-style glyphs incl. day/night variants, tinted `--fg-secondary` via `currentColor`). Glyph resolution: NWS icon-URL condition code (weather outranks sky cover on dual-condition URLs) → `shortForecast` keyword fallback → plain cloud. No cross-origin image requests anymore; an NWS icon-format change degrades to a cloud glyph, never a broken card. `NWSPeriod.icon` is still fetched/typed but no longer rendered anywhere.
 - **Verification harness:** `.claude/skills/verify/SKILL.md` records how to drive the built app locally with Playwright + mocked NWS responses (remote sandboxes block `api.weather.gov`).
 
-## Next feature — Radio Forecast (planned 2026-07-12, not yet built)
+## Radio Forecast (built 2026-07-12 — awaiting owner preview verification)
 
-A **"🎙 Radio" button on the V1 Consensus Brief card** that reads the current brief aloud in the style of a radio weather announcer, via OpenAI text-to-speech (`gpt-4o-mini-tts`, ~$0.01 per generation). Full implementation plan, locked decisions, API/blob specs, and the owner's OpenAI-key setup steps live in **`radio-forecast-plan.md`** — the implementing session should follow that doc; all design decisions in it are already made and agreed with the owner.
+A **"🎙 Radio" button on the V1 Consensus Brief card** that reads the current brief aloud in the style of a radio weather announcer, via OpenAI text-to-speech (`gpt-4o-mini-tts`, voice `ash`, ~$0.01 per generation). Built exactly per **`radio-forecast-plan.md`** on branch `claude/radio-forecast-feature-kz24j7`; as-built details in `build-log.md` → "Radio Forecast". **Not yet merged to `main`** — per the plan's rollout rule, the owner verifies on the Vercel preview deploy first (including real-iPhone audio from the installed PWA — iOS gesture rule can't be tested in a sandbox).
 
-Summary of the locked shape: generation is **on-click only** (not with every brief); the new `api/radio.ts` reads the *cached brief from Blob* server-side (never accepts text from the client — abuse guard); MP3s are cached in Vercel Blob keyed to a SHA-256 hash of the brief text; V1 only (button passed as an optional param to `renderBrief`, V2 untouched); requires a new `OPENAI_API_KEY` env var the owner must provision first (see plan §4). Verify on a Vercel preview deploy — including on the owner's real iPhone (iOS audio-gesture rule) — before merging to `main`.
+As-built shape: generation is **on-click only**; `api/radio.ts` reads the *cached brief from Blob* server-side (never accepts text from the client — abuse guard); MP3s are cached in Vercel Blob keyed to a SHA-256 hash of the brief text (`radio-home-{hash}.mp3`), stale ones deleted, `Cache-Control: no-store` on the endpoint; frontend fetch layer `src/shared/radio.ts`; button added via an optional `onRadio` param on `renderBrief` that only V1's `src/render.ts` passes — **V2 untouched, verified no radio button and no `/api/radio` calls on `/shared`**. Button states: 🎙 Radio → Generating… → ⏹ Stop → idle; failure shows "Unavailable" briefly and never affects the brief text; if iOS voids the tap gesture during the fetch, the button falls back to "▶ Play" for a synchronous second tap.
 
 ## Notes
 - `build-log.md` — detailed record of workstream decisions, bugs encountered, and solutions.
-- `radio-forecast-plan.md` — implementation plan for the next feature (Radio Forecast TTS button); see "Next feature" section above.
+- `radio-forecast-plan.md` — implementation plan for the Radio Forecast TTS button (now built — see "Radio Forecast" section above).
 - `archive/` — completed planning and spec docs, kept for history (original V1 spec + earliest planning doc, the four V2 build docs, the forecast-comparison epic plan, and the 2026-07-06 design-feedback bundle). See `archive/README.md` for what each file was. If an archived doc contradicts this file, this file wins. Notable: `archive/weather-forecast-overview.md` is the original locked V1 spec (source of truth over `archive/weather-pwa-planning.md` where they differ).

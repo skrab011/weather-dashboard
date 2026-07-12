@@ -733,10 +733,18 @@ export function renderChart(
 // ---------------------------------------------------------------------------
 // title defaults to "Consensus Brief" (V1 behavior); the shared page passes
 // "Forecast Brief" for non-Colorado locations.
+//
+// onRadio (optional): resolves to the URL of a TTS MP3 reading of the brief.
+// When absent the card renders exactly as before — only V1 passes it, so the
+// V2 page is untouched. Playback goes through a single module-level
+// HTMLAudioElement so it survives re-renders and only one clip plays at once.
+let radioAudio: HTMLAudioElement | null = null;
+
 export function renderBrief(
   result: SourceResult<ConsensusBrief>,
   onRefresh: () => Promise<void>,
   title = "Consensus Brief",
+  onRadio?: () => Promise<string /* audioUrl */>,
 ): void {
   const el = document.getElementById("brief-region")!;
 
@@ -769,6 +777,7 @@ export function renderBrief(
       <div class="brief-body">${d.text}</div>
       <div class="brief-footer">
         ${genTime ? `<span class="brief-generated">Generated ${genTime}</span>` : ""}
+        ${onRadio ? `<button class="brief-radio-btn" aria-label="Play radio forecast">🎙 Radio</button>` : ""}
         <button class="brief-refresh-btn" aria-label="Refresh ${title.toLowerCase()}">↻ Refresh</button>
       </div>
       ${cardFooter(ts, result.error)}
@@ -787,6 +796,60 @@ export function renderBrief(
       btn.textContent = "↻ Refresh";
     }
   });
+
+  if (onRadio) {
+    const radioBtn = el.querySelector<HTMLButtonElement>(".brief-radio-btn")!;
+    if (!radioAudio) radioAudio = new Audio();
+    const audio = radioAudio;
+
+    const setIdle = () => { radioBtn.disabled = false; radioBtn.textContent = "🎙 Radio"; };
+    const setStop = () => { radioBtn.disabled = false; radioBtn.textContent = "⏹ Stop"; };
+    const setUnavailable = () => {
+      radioBtn.disabled = true;
+      radioBtn.textContent = "Unavailable";
+      setTimeout(setIdle, 2_500);
+    };
+
+    // A re-render mid-playback recreates the button; reflect the live state.
+    // onended (not addEventListener) so re-renders replace, never stack.
+    if (!audio.paused) setStop();
+    audio.onended = setIdle;
+
+    radioBtn.addEventListener("click", async () => {
+      // Tap while playing → stop and reset
+      if (!audio.paused) {
+        audio.pause();
+        audio.currentTime = 0;
+        setIdle();
+        return;
+      }
+
+      // "▶ Play" fallback (see below): the audio is already loaded, so this
+      // play() runs synchronously inside the tap gesture and always works.
+      if (radioBtn.textContent === "▶ Play") {
+        try { await audio.play(); setStop(); } catch { setUnavailable(); }
+        return;
+      }
+
+      radioBtn.disabled = true;
+      radioBtn.textContent = "Generating…";
+      try {
+        audio.src = await onRadio();
+        try {
+          await audio.play();
+          setStop();
+        } catch {
+          // iOS Safari only allows audio started by a user gesture, and the
+          // await above can void it. The audio is loaded now, so offer a
+          // second tap that plays synchronously.
+          radioBtn.disabled = false;
+          radioBtn.textContent = "▶ Play";
+        }
+      } catch {
+        setUnavailable();
+      }
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------

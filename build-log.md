@@ -716,3 +716,61 @@ descoped (clutter).
 checks — PA value (41%) preferred over NWS (55%) when present; NWS fallback
 when `humidityPct` is null AND when `/api/air-quality` 500s entirely; row
 order Wind < Humidity < Sunrise; all on both V1 `/` and V2 `/shared`.
+
+## Radio Forecast — TTS reading of the brief (2026-07-12)
+
+The gag feature: a "🎙 Radio" button on the V1 Consensus Brief card that reads
+the current brief aloud like a morning drive-time radio announcer. Built per
+`radio-forecast-plan.md` (all decisions were locked there in advance); branch
+`claude/radio-forecast-feature-kz24j7`, awaiting owner verification on the
+Vercel preview before merge to `main`.
+
+**Implementation (R1–R4 as planned, no deviations):**
+- `api/radio.ts` (new, self-contained): reads the *cached brief* from Vercel
+  Blob server-side — never accepts text from the client (abuse guard; the
+  endpoint is public). SHA-256 of the brief text (first 16 hex chars) keys the
+  MP3 blob (`radio-home-{hash}.mp3`; lat/lon path `radio-{lat}_{lon}-{hash}.mp3`
+  mirrors `api/brief.ts` for a future V2 extension). Cache hit → return the
+  existing blob URL, no OpenAI call. Miss → `gpt-4o-mini-tts`, voice `ash`,
+  instructions "enthusiastic AM-radio weather announcer … morning drive-time
+  radio segment, with a smile in your voice", input capped at 1500 chars
+  (cost guard), then stale radio blobs for the location are deleted (storage
+  stays at one MP3 per location). `Cache-Control: no-store` — deliberately NOT
+  the brief's `s-maxage=600`, so a CDN-cached response can never hand back
+  audio for a brief that a manual ↻ Refresh just replaced. All failures return
+  status 200 with `{ audioUrl: null, error }`.
+- `src/shared/radio.ts` (new): thin `fetchRadio()` mirroring `fetchBrief`'s
+  URL handling; no `SourceResult` (audio is ephemeral, nothing renders from
+  state).
+- `src/shared/cards.ts` (`renderBrief`): new *optional* 4th param
+  `onRadio?: () => Promise<string>`. Absent → output byte-identical to before
+  (V2 protection; only V1's `src/render.ts` passes it —
+  `src/shared-page/render.ts` untouched). Playback via a single module-level
+  `HTMLAudioElement` so it survives re-renders and only one clip plays at
+  once; a re-render mid-playback re-shows "⏹ Stop" and reassigns `onended`
+  (assignment, not addEventListener, so handlers never stack). Button states:
+  🎙 Radio → Generating… (disabled) → ⏹ Stop → back to idle on end/tap;
+  failures show "Unavailable" for 2.5 s then revert. **iOS gesture fallback
+  kept as planned:** if `play()` rejects (the `await` before it can void
+  Safari's user-gesture window), the button becomes "▶ Play" — the audio is
+  already loaded, so the second tap plays synchronously.
+- `src/style.css`: `.brief-radio-btn` shares the `.brief-refresh-btn` pill
+  rules via combined selectors; `margin-left: auto` keeps the two buttons
+  together on the right of the footer. V2's stylesheet untouched.
+
+**Verification (Playwright harness, 13/13):** button renders with correct
+idle label next to ↻ Refresh; Generating… → ⏹ Stop → auto-revert on ended;
+tap-mid-playback stops; error response → "Unavailable" → auto-revert; brief
+text untouched by radio failures; V2 `/shared` has no radio button and never
+calls `/api/radio`. Real TTS + real-iPhone audio still need the preview
+deploy (sandbox can't reach api.openai.com or emulate iOS gesture rules).
+
+**Surprise worth recording:** first harness run failed with
+`NotSupportedError` on `audio.play()` — the app's *service worker* was
+controlling the page, and media fetches from a SW-controlled page bypass
+Playwright's `page.route()` interception (they hit the real server and
+404'd). Not an app bug: `public/sw.js` returns early for cross-origin
+requests, and production audio lives on `*.blob.vercel-storage.com`
+(cross-origin), so the SW never touches it. Harness fix: stub
+`navigator.serviceWorker.register` with a never-resolving promise via
+`addInitScript` (recorded in `.claude/skills/verify/SKILL.md`).

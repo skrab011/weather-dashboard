@@ -771,7 +771,8 @@ body {
   color: var(--muted);
 }
 
-.brief-refresh-btn {
+.brief-refresh-btn,
+.brief-radio-btn {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -784,15 +785,22 @@ body {
   white-space: nowrap;
 }
 
-.brief-refresh-btn:hover:not(:disabled) {
+.brief-refresh-btn:hover:not(:disabled),
+.brief-radio-btn:hover:not(:disabled) {
   background: var(--accent-dim);
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.brief-refresh-btn:disabled {
+.brief-refresh-btn:disabled,
+.brief-radio-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Push the generated-timestamp left and keep the two buttons together */
+.brief-radio-btn {
+  margin-left: auto;
 }
 
 /* =========================================================================

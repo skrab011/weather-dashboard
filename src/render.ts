@@ -15,6 +15,7 @@
 import { LOCATIONS } from "./locations";
 import { state, setActiveLocation, setActiveView, setActiveChartVar, setActiveHourlyVar, updateBrief } from "./store";
 import { fetchBrief } from "./shared/brief";
+import { fetchRadio } from "./shared/radio";
 import {
   skeletonCard,
   renderAlerts,
@@ -138,10 +139,21 @@ export function renderAll(): void {
   // Capture the current brief result so the refresh uses the same value the
   // original render-time closure did.
   const brief = state.brief;
-  renderBrief(brief, async () => {
-    const updated = await fetchBrief(brief, true);
-    updateBrief(updated);
-  });
+  renderBrief(
+    brief,
+    async () => {
+      const updated = await fetchBrief(brief, true);
+      updateBrief(updated);
+    },
+    "Consensus Brief",
+    // Radio button (V1 only) — resolves to the TTS MP3 URL or throws so the
+    // button can show its "Unavailable" state.
+    async () => {
+      const radio = await fetchRadio();
+      if (radio.error || !radio.audioUrl) throw new Error(radio.error ?? "No audio returned");
+      return radio.audioUrl;
+    },
+  );
 
   renderCAIC(state.caic.summary);
   renderTomer(state.tomer);

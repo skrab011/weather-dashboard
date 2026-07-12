@@ -1,6 +1,6 @@
 # Radio Forecast — Build Plan
 
-> Status: **📋 PLANNED — next feature, not yet started.** Planned 2026-07-12.
+> Status: **🔨 BUILT 2026-07-12 — on branch `claude/radio-forecast-feature-kz24j7`, awaiting owner verification on the Vercel preview before merge to `main`.** Planned 2026-07-12. As-built record in `build-log.md` → "Radio Forecast".
 > This doc is written so a future Claude session (Opus or Sonnet) can implement
 > it with minimal back-and-forth. All design decisions below are **locked** —
 > the owner has already chosen the provider and the generation strategy, so

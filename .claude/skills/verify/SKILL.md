@@ -37,3 +37,12 @@ intercepting network calls with Playwright fixtures.
   `src/shared-page/render.ts`.
 - Toggle pills reuse `.chart-var-btn` classes in multiple cards — scope
   selectors by region id (e.g. `#hourly-region .chart-var-btn`).
+- The app registers a service worker, and requests from a SW-controlled page
+  (including `<audio>`/media fetches) BYPASS `page.route()` — fixtures
+  silently stop matching and media loads fail with `NotSupportedError`.
+  Stub registration out before load:
+  `page.addInitScript(() => { navigator.serviceWorker.register = () => new Promise(() => {}); })`
+  (never-resolving, so the app's `.then()` chain stays silent).
+- Headless audio playback works once the SW is stubbed; launch Chromium with
+  `--autoplay-policy=no-user-gesture-required` and serve a tiny generated
+  WAV as the fixture (content type wins over a `.mp3` URL suffix).
