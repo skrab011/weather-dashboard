@@ -787,3 +787,18 @@ token for the Preview environment, an empty commit triggered a redeploy, and
 all checklist items passed (iPhone + desktop audio, stop/replay, cache hit,
 V2 clean). Merged to `main` 2026-07-12. Owner has follow-up thoughts on
 tuning the audio delivery (voice / `instructions` string in `api/radio.ts`).
+
+**Audio tuning round 1 (2026-07-12, owner feedback).** Owner kept voice
+`ash` but found the delivery stiff/robotic and asked for a time-of-day
+greeting. Two changes in `api/radio.ts`:
+- *Greeting:* "Good morning" (4:00–11:59) / "Good afternoon" (12:00–16:59) /
+  "Good evening" (17:00–3:59), Colorado time via `Intl.DateTimeFormat`
+  (`America/Denver`), **prepended to the spoken input text** — not requested
+  via `instructions`, which steers style but can't reliably add words. The
+  cache hash now covers the full spoken text (greeting + brief), so the clip
+  regenerates when the time of day rolls over — a morning clip can never
+  replay "Good morning" at night. Costs one extra ~$0.01 generation per
+  time-of-day boundary crossed per brief.
+- *Warmth:* instructions rewritten — longtime local drive-time host chatting
+  with regulars, relaxed pace, natural rhythm/pitch variation, "never flat,
+  stiff, or robotic", warm lean into the greeting.

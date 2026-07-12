@@ -3,9 +3,11 @@
 //
 // Reads the cached brief JSON from Vercel Blob (never accepts text from the
 // client — this endpoint is public, and accepting arbitrary text would turn
-// it into a free TTS service on the owner's OpenAI bill). The MP3 is cached
-// in Blob keyed to a SHA-256 hash of the brief text, so audio can never go
-// out of sync with the brief: same text → same file; new brief → new hash.
+// it into a free TTS service on the owner's OpenAI bill). A time-of-day
+// greeting is prepended to the spoken text, and the MP3 is cached in Blob
+// keyed to a SHA-256 hash of that full spoken text, so audio can never go
+// out of sync with the brief or the greeting: new brief or a new time of
+// day → new hash → regenerate.
 // All logic lives in this single file to avoid inter-api imports which
 // Vercel's bundler does not handle reliably.
 // ---------------------------------------------------------------------------
@@ -22,9 +24,12 @@ const OPENAI_TTS_API = "https://api.openai.com/v1/audio/speech";
 const TTS_MODEL      = "gpt-4o-mini-tts";
 const TTS_VOICE      = "ash";
 const TTS_INSTRUCTIONS =
-  "You are an enthusiastic AM-radio weather announcer. Read this forecast " +
-  "briskly and warmly, like a morning drive-time radio segment, with a smile " +
-  "in your voice.";
+  "You are a warm, friendly local radio weather host — a longtime " +
+  "drive-time veteran chatting with regular listeners, not a script reader. " +
+  "Speak conversationally and naturally: relaxed easy pace, a genuine smile " +
+  "in your voice, natural variation in rhythm and pitch with small pauses " +
+  "and friendly emphasis — never flat, stiff, or robotic. Open the greeting " +
+  "warmly, like you're genuinely glad the listener tuned in.";
 // Cost guard — briefs run ~400–700 chars, so this should never bite unless
 // something upstream breaks.
 const TTS_INPUT_CAP  = 1500;
@@ -48,6 +53,20 @@ function briefBlobName(lat: number, lon: number): string {
 
 function radioPrefix(hasCoords: boolean, lat: number, lon: number): string {
   return hasCoords ? `radio-${lat.toFixed(2)}_${lon.toFixed(2)}-` : "radio-home-";
+}
+
+// ---------------------------------------------------------------------------
+// Time-of-day greeting, prepended to the spoken text (not put in the TTS
+// instructions — `instructions` steers delivery style, it can't reliably add
+// words). Uses Colorado time; the radio button is V1-only (home location), so
+// this is correct for every current caller.
+// ---------------------------------------------------------------------------
+function timeGreeting(): string {
+  const hourStr = new Intl.DateTimeFormat("en-US", { timeZone: "America/Denver", hour: "numeric", hour12: false }).format(new Date());
+  const hour = parseInt(hourStr, 10);
+  if (hour >= 4 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +145,11 @@ export default async function handler(req: Req, res: Res): Promise<void> {
       return;
     }
 
-    const hash = createHash("sha256").update(brief.text).digest("hex").slice(0, 16);
+    // Hash the full spoken text (greeting + brief) so the cache regenerates
+    // both when the brief changes and when the time of day rolls over —
+    // a morning clip must never replay "Good morning" in the evening.
+    const speech = `${timeGreeting()}! ${brief.text}`;
+    const hash = createHash("sha256").update(speech).digest("hex").slice(0, 16);
     const audioName = `${prefix}${hash}.mp3`;
 
     const { list, put, del } = await import("@vercel/blob");
@@ -141,7 +164,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
     // Cache miss — generate, store, then prune stale audio for this location
     // (keeps storage at one audio file per location, ever).
-    const mp3 = await generateSpeech(brief.text);
+    const mp3 = await generateSpeech(speech);
     const saved = await put(audioName, mp3, { access: "public", addRandomSuffix: false, contentType: "audio/mpeg", token });
 
     const stale = blobs.filter(b => b.pathname !== audioName).map(b => b.url);
