@@ -855,3 +855,10 @@ better voice). The last commit containing the OpenAI implementation is
 - New fragility nuance: the custom voice lives in the owner's ElevenLabs
   account (My Voices). Nobody else can remove it, but deleting it there
   breaks the button ("Unavailable"); fix is a new voice ID in `api/radio.ts`.
+
+**Preview verification & ship (2026-07-13).** Owner verified on the Vercel
+preview and signed off — no issues this time (the `ELEVENLABS_API_KEY` had
+been added for all environments up front, so the preview-env gotcha that bit
+the original radio build never appeared). Merged to `main` 2026-07-13.
+Remaining follow-up: owner deletes `OPENAI_API_KEY` from Vercel ~2026-07-20
+after the one-week rollback window (`elevenlabs-migration-plan.md` §6).

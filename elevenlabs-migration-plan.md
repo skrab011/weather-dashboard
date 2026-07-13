@@ -1,10 +1,11 @@
 # Radio Forecast — OpenAI → ElevenLabs Migration Plan
 
-> Status: **BUILT 2026-07-13 — awaiting owner verification on the Vercel
-> preview (§8) before merge to `main`.** Owner chose the provider (cost
-> analysis: ~$2.50/month at 2 × ~800-character briefs/day on a Turbo model),
-> crafted a custom voice, settled the open questions (see §5), and approved
-> this plan. As-built record in `build-log.md` → "ElevenLabs migration".
+> Status: **✅ SHIPPED 2026-07-13 — owner verified on the Vercel preview and
+> merged to `main`.** Owner chose the provider (cost analysis: ~$2.50/month
+> at 2 × ~800-character briefs/day on a Turbo model), crafted a custom voice,
+> settled the open questions (see §5), and approved this plan. As-built
+> record in `build-log.md` → "ElevenLabs migration". One open follow-up:
+> delete `OPENAI_API_KEY` from Vercel ~2026-07-20 (§6 rollback parachute).
 >
 > Companion to `CLAUDE.md` (project rules — read it first) and
 > `radio-forecast-plan.md` (the original OpenAI build, which this replaces —
