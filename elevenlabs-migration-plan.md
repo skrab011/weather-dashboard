@@ -1,10 +1,10 @@
 # Radio Forecast — OpenAI → ElevenLabs Migration Plan
 
-> Status: **PLANNED 2026-07-13, all decisions LOCKED — awaiting owner review
-> of this doc before building.** Owner chose the provider (cost analysis:
-> ~$2.50/month at 2 × ~800-character briefs/day on a Turbo model), crafted a
-> custom voice, and settled the open questions on 2026-07-13 (see §5). Build
-> may start once the owner signs off on this document.
+> Status: **BUILT 2026-07-13 — awaiting owner verification on the Vercel
+> preview (§8) before merge to `main`.** Owner chose the provider (cost
+> analysis: ~$2.50/month at 2 × ~800-character briefs/day on a Turbo model),
+> crafted a custom voice, settled the open questions (see §5), and approved
+> this plan. As-built record in `build-log.md` → "ElevenLabs migration".
 >
 > Companion to `CLAUDE.md` (project rules — read it first) and
 > `radio-forecast-plan.md` (the original OpenAI build, which this replaces —

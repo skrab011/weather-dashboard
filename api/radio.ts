@@ -3,11 +3,12 @@
 //
 // Reads the cached brief JSON from Vercel Blob (never accepts text from the
 // client — this endpoint is public, and accepting arbitrary text would turn
-// it into a free TTS service on the owner's OpenAI bill). A time-of-day
+// it into a free TTS service on the owner's ElevenLabs bill). A time-of-day
 // greeting is prepended to the spoken text, and the MP3 is cached in Blob
-// keyed to a SHA-256 hash of that full spoken text, so audio can never go
-// out of sync with the brief or the greeting: new brief or a new time of
-// day → new hash → regenerate.
+// keyed to a SHA-256 hash of the model ID plus that full spoken text, so
+// audio can never go out of sync with the brief, the greeting, or the voice
+// model: new brief, new time of day, or a model/provider change → new hash
+// → regenerate.
 // All logic lives in this single file to avoid inter-api imports which
 // Vercel's bundler does not handle reliably.
 // ---------------------------------------------------------------------------
@@ -20,16 +21,13 @@ type Res = { status: (c: number) => Res; json: (b: unknown) => void; setHeader: 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const OPENAI_TTS_API = "https://api.openai.com/v1/audio/speech";
-const TTS_MODEL      = "gpt-4o-mini-tts";
-const TTS_VOICE      = "ash";
-const TTS_INSTRUCTIONS =
-  "You are a warm, friendly local radio weather host — a longtime " +
-  "drive-time veteran chatting with regular listeners, not a script reader. " +
-  "Speak conversationally and naturally: relaxed easy pace, a genuine smile " +
-  "in your voice, natural variation in rhythm and pitch with small pauses " +
-  "and friendly emphasis — never flat, stiff, or robotic. Open the greeting " +
-  "warmly, like you're genuinely glad the listener tuned in.";
+// The radio-host delivery and pacing are designed into the owner's custom
+// voice itself (ElevenLabs Voice Design) — no instructions or voice_settings
+// are sent; omitting voice_settings uses the settings saved on the voice.
+const TTS_VOICE_ID   = "Gw0nY3v7mRqp8whsS8cs";
+const TTS_MODEL      = "eleven_turbo_v2_5";
+const ELEVENLABS_TTS_API =
+  `https://api.elevenlabs.io/v1/text-to-speech/${TTS_VOICE_ID}?output_format=mp3_44100_128`;
 // Cost guard — briefs run ~400–700 chars, so this should never bite unless
 // something upstream breaks.
 const TTS_INPUT_CAP  = 1500;
@@ -90,26 +88,23 @@ async function readCachedBrief(blobName: string): Promise<BriefResult | null> {
 }
 
 // ---------------------------------------------------------------------------
-// OpenAI TTS — returns raw MP3 bytes
+// ElevenLabs TTS — returns raw MP3 bytes
 // ---------------------------------------------------------------------------
 async function generateSpeech(text: string): Promise<Buffer> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) throw new Error("ELEVENLABS_API_KEY is not set");
 
-  const r = await fetch(OPENAI_TTS_API, {
+  const r = await fetch(ELEVENLABS_TTS_API, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
     body: JSON.stringify({
-      model: TTS_MODEL,
-      voice: TTS_VOICE,
-      input: text.slice(0, TTS_INPUT_CAP),
-      instructions: TTS_INSTRUCTIONS,
-      response_format: "mp3",
+      model_id: TTS_MODEL,
+      text: text.slice(0, TTS_INPUT_CAP),
     }),
     signal: AbortSignal.timeout(20_000),
   });
 
-  if (!r.ok) throw new Error(`OpenAI TTS ${r.status}: ${await r.text().catch(() => r.statusText)}`);
+  if (!r.ok) throw new Error(`ElevenLabs TTS ${r.status}: ${await r.text().catch(() => r.statusText)}`);
   return Buffer.from(await r.arrayBuffer());
 }
 
@@ -145,11 +140,13 @@ export default async function handler(req: Req, res: Res): Promise<void> {
       return;
     }
 
-    // Hash the full spoken text (greeting + brief) so the cache regenerates
-    // both when the brief changes and when the time of day rolls over —
-    // a morning clip must never replay "Good morning" in the evening.
+    // Hash the model ID + full spoken text (greeting + brief) so the cache
+    // regenerates when the brief changes, when the time of day rolls over
+    // (a morning clip must never replay "Good morning" in the evening), and
+    // when the TTS model or provider changes — without the model in the hash,
+    // an unchanged brief would keep serving audio in the old voice.
     const speech = `${timeGreeting()}! ${brief.text}`;
-    const hash = createHash("sha256").update(speech).digest("hex").slice(0, 16);
+    const hash = createHash("sha256").update(`${TTS_MODEL}|${speech}`).digest("hex").slice(0, 16);
     const audioName = `${prefix}${hash}.mp3`;
 
     const { list, put, del } = await import("@vercel/blob");

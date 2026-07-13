@@ -740,11 +740,6 @@ export function renderChart(
 // HTMLAudioElement so it survives re-renders and only one clip plays at once.
 let radioAudio: HTMLAudioElement | null = null;
 
-// Played slightly faster than recorded (owner preference). Set before every
-// play() — loading a new src can reset the rate on some browsers. Browsers
-// preserve pitch at moderate rates, so the voice stays natural.
-const RADIO_PLAYBACK_RATE = 1.1;
-
 export function renderBrief(
   result: SourceResult<ConsensusBrief>,
   onRefresh: () => Promise<void>,
@@ -832,7 +827,7 @@ export function renderBrief(
       // "▶ Play" fallback (see below): the audio is already loaded, so this
       // play() runs synchronously inside the tap gesture and always works.
       if (radioBtn.textContent === "▶ Play") {
-        try { audio.playbackRate = RADIO_PLAYBACK_RATE; await audio.play(); setStop(); } catch { setUnavailable(); }
+        try { await audio.play(); setStop(); } catch { setUnavailable(); }
         return;
       }
 
@@ -841,7 +836,6 @@ export function renderBrief(
       try {
         audio.src = await onRadio();
         try {
-          audio.playbackRate = RADIO_PLAYBACK_RATE;
           await audio.play();
           setStop();
         } catch {

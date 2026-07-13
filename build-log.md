@@ -811,3 +811,47 @@ set immediately before every `play()` call because loading a new `src` can
 reset the rate. Browsers preserve pitch at moderate rates. Verified at
 runtime via the Playwright harness (rate is 1.1 during playback; button
 states unaffected).
+
+## Radio Forecast — ElevenLabs migration (2026-07-13)
+
+The radio button's TTS provider swapped from OpenAI to **ElevenLabs**, per
+`elevenlabs-migration-plan.md` (all decisions owner-locked 2026-07-13 before
+the build; branch `claude/openai-elevenlab-tts-migration-sp0g63`). Motivation:
+the owner crafted a custom radio-host voice in ElevenLabs Voice Design and
+priced the usage (~$0.05/1k chars on Turbo ≈ $2.50/month worst case — vs.
+~$0.01/generation on OpenAI; slightly more, still trivially in budget, much
+better voice). The last commit containing the OpenAI implementation is
+`8f7e32d` on `main` (one `git show 8f7e32d:api/radio.ts` away).
+
+**Implementation (E1–E4 as planned, no deviations):**
+- `api/radio.ts`: `generateSpeech()` now POSTs
+  `https://api.elevenlabs.io/v1/text-to-speech/{TTS_VOICE_ID}?output_format=mp3_44100_128`
+  with header `xi-api-key: $ELEVENLABS_API_KEY` and body
+  `{ model_id: "eleven_turbo_v2_5", text }`. Voice `Gw0nY3v7mRqp8whsS8cs`
+  (owner's custom voice) rides in the URL path, not the body. **No
+  `instructions` and no `voice_settings` sent** — the radio-host delivery and
+  pacing are designed into the voice itself; omitting `voice_settings` uses
+  the settings saved on the voice. Everything else in the file (Blob brief
+  read, abuse guard, greeting, 1500-char cap, 20 s timeout, stale-blob
+  pruning, `no-store`, status-200 error envelope) is unchanged.
+- **Cache bust on provider switch:** the MP3 hash input is now
+  `"{TTS_MODEL}|{speech}"` instead of the spoken text alone — without this,
+  an unchanged brief would have kept serving the cached OpenAI-voiced clip.
+  Any future model or provider change now regenerates automatically; a voice
+  change within ElevenLabs would need a manual constant tweak to bust (or
+  fold the voice ID into the hash then).
+- `src/shared/cards.ts`: `RADIO_PLAYBACK_RATE` and both `playbackRate`
+  assignments **removed** (owner decision — the custom voice's pacing was set
+  in Voice Design, so the OpenAI-era 1.1x speed-up is retired; audio plays at
+  the default 1.0). The lines lived inside the `onRadio` branch only V1
+  exercises, so V2 is unchanged by construction.
+- Env: `ELEVENLABS_API_KEY` added by the owner in Vercel (all environments,
+  including Preview — lesson learned from the `BLOB_READ_WRITE_TOKEN` preview
+  gotcha). `OPENAI_API_KEY` is no longer referenced by any code; it stays in
+  Vercel as a rollback parachute until ~2026-07-20, then the owner deletes it
+  (steps in `elevenlabs-migration-plan.md` §6).
+- Docs: `radio-forecast-plan.md` → `archive/` (OpenAI-era plan, historical);
+  `CLAUDE.md` keys table, fragility #5, and Radio Forecast section updated.
+- New fragility nuance: the custom voice lives in the owner's ElevenLabs
+  account (My Voices). Nobody else can remove it, but deleting it there
+  breaks the button ("Unavailable"); fix is a new voice ID in `api/radio.ts`.

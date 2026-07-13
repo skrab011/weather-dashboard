@@ -15,3 +15,4 @@ contradicts `CLAUDE.md`, `CLAUDE.md` wins.
 | `v2-prompts.md` | Copy-paste session prompts used during the V2 build | Same. |
 | `forecast-upgrade-plan.md` | The forecast-comparison epic (AFD → brief, ECMWF/GFS chart lines, disagreement band, variable toggle) | Epic complete, all tracks merged to `main` 2026-06-22. One open watch-item (Open-Meteo precip/snow units) is tracked in `build-log.md`. |
 | `Design feedback request.zip` | Design-handoff bundle (annotated HTML review + mockup files) behind the 2026-07-06 design-polish pass | That polish shipped in the "Design polish" commit on `main`. |
+| `radio-forecast-plan.md` | Build plan for the 🎙 Radio Forecast button in its original OpenAI-TTS form (shipped 2026-07-12) | The feature lives on, but its TTS provider was migrated to ElevenLabs on 2026-07-13 (see `elevenlabs-migration-plan.md` at the repo root) — the OpenAI specifics here are historical. |

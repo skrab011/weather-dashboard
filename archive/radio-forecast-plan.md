@@ -1,6 +1,7 @@
 # Radio Forecast — Build Plan
 
 > Status: **✅ SHIPPED 2026-07-12 — owner verified on preview (iPhone + desktop) and merged to `main`.** Planned 2026-07-12. As-built record in `build-log.md` → "Radio Forecast".
+> **ARCHIVED 2026-07-13:** the feature lives on, but its TTS provider was migrated from OpenAI to ElevenLabs — see `elevenlabs-migration-plan.md` at the repo root. The OpenAI specifics below are historical.
 > This doc is written so a future Claude session (Opus or Sonnet) can implement
 > it with minimal back-and-forth. All design decisions below are **locked** —
 > the owner has already chosen the provider and the generation strategy, so
