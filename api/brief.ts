@@ -59,7 +59,10 @@ async function readCached(blobName: string): Promise<BriefResult | null> {
     const prefix = blobName.replace(/\.json$/, "");
     const { blobs } = await list({ prefix, token });
     if (blobs.length === 0) return null;
-    const r = await fetch(blobs[0].url);
+    // Cache-bust: blob URLs are edge-cached (up to cacheControlMaxAge), and the
+    // brief is overwritten at a fixed pathname — a bare fetch could return a
+    // previous brief. A unique query string forces a fresh read.
+    const r = await fetch(`${blobs[0].url}?ts=${Date.now()}`);
     if (!r.ok) return null;
     return r.json() as Promise<BriefResult>;
   } catch { return null; }
@@ -70,8 +73,16 @@ async function writeCached(blobName: string, result: BriefResult): Promise<void>
     const token = process.env.BLOB_READ_WRITE_TOKEN;
     if (!token) return;
     const { put } = await import("@vercel/blob");
-    await put(blobName, JSON.stringify(result), { access: "public", addRandomSuffix: false, contentType: "application/json", token });
-  } catch { /* non-fatal */ }
+    // allowOverwrite is required: since @vercel/blob v1, put() to an existing
+    // pathname throws without it, which froze the cached brief at first write.
+    // cacheControlMaxAge at the 60s minimum (default is one month) so the edge
+    // cache in front of the blob URL can't serve a long-stale brief either.
+    await put(blobName, JSON.stringify(result), { access: "public", addRandomSuffix: false, allowOverwrite: true, cacheControlMaxAge: 60, contentType: "application/json", token });
+  } catch (err) {
+    // Non-fatal (the fresh brief is still returned to the caller), but log it —
+    // a silent failure here starves /api/radio and normal page loads of updates.
+    console.error("brief writeCached failed:", err instanceof Error ? err.message : err);
+  }
 }
 
 // ---------------------------------------------------------------------------

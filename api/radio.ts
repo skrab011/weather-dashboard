@@ -80,7 +80,10 @@ async function readCachedBrief(blobName: string): Promise<BriefResult | null> {
     const prefix = blobName.replace(/\.json$/, "");
     const { blobs } = await list({ prefix, token });
     if (blobs.length === 0) return null;
-    const r = await fetch(blobs[0].url);
+    // Cache-bust: the brief blob is overwritten at a fixed pathname and its URL
+    // is edge-cached — a bare fetch could return a previous brief, which would
+    // hash to the old MP3 and keep serving stale audio after a brief refresh.
+    const r = await fetch(`${blobs[0].url}?ts=${Date.now()}`);
     if (!r.ok) return null;
     const j = await r.json() as BriefResult;
     return j.text ? j : null;
@@ -161,8 +164,11 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
     // Cache miss — generate, store, then prune stale audio for this location
     // (keeps storage at one audio file per location, ever).
+    // allowOverwrite: two overlapping requests can both miss the cache and put
+    // the same hash-keyed pathname; without it the loser throws (since
+    // @vercel/blob v1) and the button shows "Unavailable" for no real reason.
     const mp3 = await generateSpeech(speech);
-    const saved = await put(audioName, mp3, { access: "public", addRandomSuffix: false, contentType: "audio/mpeg", token });
+    const saved = await put(audioName, mp3, { access: "public", addRandomSuffix: false, allowOverwrite: true, contentType: "audio/mpeg", token });
 
     const stale = blobs.filter(b => b.pathname !== audioName).map(b => b.url);
     if (stale.length > 0) await del(stale, { token }).catch(() => { /* non-fatal */ });
