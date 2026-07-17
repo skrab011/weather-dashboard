@@ -18,7 +18,7 @@ import "./style.css";
 import "./shared-page/style.css";
 import { fetchPoints, fetchAllForLocation } from "./shared/nws";
 import { fetchAirQuality } from "./shared/airQuality";
-import { fetchOpenMeteoResult } from "./shared/openmeteo";
+import { fetchCurrentWindResult, fetchOpenMeteoResult } from "./shared/openmeteo";
 import { fetchCAIC } from "./shared/caic";
 import { fetchTomer } from "./shared/tomer";
 import { fetchBrief } from "./shared/brief";
@@ -95,7 +95,7 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
     const sunTimes = calcSunTimes(loc.lat, loc.lon, new Date());
     store.updateLocationWeather(loc.id, { ...store.state.weather[loc.id], sunTimes });
 
-    const [nwsOutcome, aqResult, omResult] = await Promise.allSettled([
+    const [nwsOutcome, aqResult, omResult, cwResult] = await Promise.allSettled([
       (async () => {
         const meta = await fetchPoints(loc.lat, loc.lon);
         return fetchAllForLocation(loc, meta, store.state.weather[loc.id]);
@@ -104,12 +104,17 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
       fetchAirQuality(loc.lat, loc.lon, { showTemp: true }, store.state.weather[loc.id].airQuality),
       // Open-Meteo (ECMWF) for the chart — never throws (returns a SourceResult)
       fetchOpenMeteoResult(loc.lat, loc.lon, store.state.weather[loc.id].openMeteo),
+      // Open-Meteo current wind (HRRR/GFS) for the Now card — never throws
+      fetchCurrentWindResult(loc.lat, loc.lon, store.state.weather[loc.id].currentWind),
     ]);
 
     // fetchOpenMeteoResult never rejects, but allSettled types it as settled.
     const openMeteo = omResult.status === "fulfilled"
       ? omResult.value
       : store.state.weather[loc.id].openMeteo;
+    const currentWind = cwResult.status === "fulfilled"
+      ? cwResult.value
+      : store.state.weather[loc.id].currentWind;
 
     if (nwsOutcome.status === "fulfilled") {
       store.updateLocationWeather(loc.id, {
@@ -119,6 +124,7 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
           ? aqResult.value
           : store.state.weather[loc.id].airQuality,
         openMeteo,
+        currentWind,
       });
     } else {
       const errMsg = nwsOutcome.reason instanceof Error ? nwsOutcome.reason.message : "Could not reach NWS";
@@ -133,6 +139,7 @@ function showDashboard(runtimeLocations: RuntimeLocation[]): void {
           ? aqResult.value
           : store.state.weather[loc.id].airQuality,
         openMeteo,
+        currentWind,
       });
     }
 

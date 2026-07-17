@@ -126,7 +126,7 @@ export function renderAll(): void {
   const showPaTemp = loc.id === "home";
 
   renderAlerts(weather.alerts);
-  renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes, weather.airQuality, showPaTemp);
+  renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes, weather.airQuality, showPaTemp, weather.currentWind);
   renderAirQuality(weather.airQuality);
   renderHourly(weather.hourly, weather.gridpoint, state.activeHourlyVar, setActiveHourlyVar);
   renderForecast(weather.forecast);

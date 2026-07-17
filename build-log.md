@@ -862,3 +862,60 @@ been added for all environments up front, so the preview-env gotcha that bit
 the original radio build never appeared). Merged to `main` 2026-07-13.
 Remaining follow-up: owner deletes `OPENAI_API_KEY` from Vercel ~2026-07-20
 after the one-week rollback window (`elevenlabs-migration-plan.md` §6).
+
+## Brief auto-refresh fix + HRRR wind on the Now card (2026-07-17)
+
+Two changes built together on branch `claude/v1-v2-bugs-additions-fz4w5u`
+(owner-reported bug + owner-requested addition, decisions locked in-session:
+30-min brief max age; Now-card wind replaced by HRRR/GFS; applies to V1 + V2).
+
+**Bug: the brief never auto-regenerated (visible since the 2026-07-13
+frozen-cache fix).** The owner saw "Last updated" advance on every reload
+while "Generated" stayed pinned to the last manual ↻ Refresh — briefs went a
+day stale. Root cause: `api/brief.ts`'s no-refresh path served the Blob-cached
+brief unconditionally — there has never been an age check on the cached JSON,
+so once a blob exists, generation only ran on `?refresh=true` (or a missing
+blob). The intended WS8 design ("regenerates on the 10-min CDN TTL") was
+never actually enforced; it *felt* enforced historically because various
+Blob-cache failures (missing token, the frozen-write bug) made `readCached`
+fall through to fresh generation. The 2026-07-13 fix made the Blob cache
+reliable end-to-end, which exposed the missing expiry. **Fix:** new
+`BRIEF_MAX_AGE_MS = 30 min` + `isFresh()` in `api/brief.ts`; a cached brief
+older than that falls through to regeneration exactly like a missing one
+(missing/unparsable `generatedAt` counts as stale; a failed regeneration
+still falls back to the stale blob in the existing catch path, so the card
+never blanks). Applies to V1's `consensus-brief.json` and V2's per-location
+blobs alike. Worst-case staleness is now ~40 min (30-min blob age + 10-min
+CDN `s-maxage`).
+
+**Addition: Now-card wind now comes from HRRR (GFS fallback) instead of the
+NWS hourly forecast** — owner finds the models more accurate. Open-Meteo
+(already used for the chart's ECMWF/GFS lines) serves NOAA HRRR (3 km,
+hourly-updated) via `models=gfs_hrrr` with a `current=wind_speed_10m,
+wind_direction_10m` block; no new accounts/keys.
+- `src/shared/openmeteo.ts`: `fetchCurrentWindResult()` — tries
+  `CURRENT_WIND_MODELS = ["gfs_hrrr", "gfs_seamless"]` in order (HRRR is
+  CONUS-only, so Alaska/Hawaii V2 locations and HRRR outages fall through to
+  GFS automatically); SourceResult-wrapped, never throws.
+- `src/shared/types.ts`: new `CurrentWind` type; `currentWind` field on
+  `LocationWeather` (+ `emptyResult` seed in `src/shared/store.ts`, Omit
+  update in `nws.ts`'s `NWSWeatherResult`).
+- `src/shared/cards.ts`: `renderConditions` takes a `windResult` param; the
+  Wind row shows the model reading (degrees → 16-point cardinal via new
+  `degToCardinal()`, arrow rotates by exact degrees, same from-direction
+  convention) and falls back to the NWS string wind when no model data —
+  the row never goes blank. Hourly strip and 7-day wind stay NWS (owner
+  scoped the change to the Now card).
+- Boot files (`src/main.ts`, `src/shared-main.ts`): fourth parallel fetch in
+  the per-location `Promise.allSettled`; both render wrappers pass
+  `weather.currentWind` through.
+- No visible source label on the row (uncluttered-UI priority) — to check
+  which model answered, look for the `models=gfs_hrrr` request in DevTools.
+
+**Verification:** Open-Meteo is blocked from the build sandbox, so the
+`current=` response shape (single-model, unsuffixed keys, mph honored) is
+parsed defensively (suffixed-key tolerant, null-safe) and needs a live check
+on the Vercel preview. Playwright harness (mocked NWS + mocked/failed
+Open-Meteo): 14/14 checks pass on V1 and V2 — HRRR renders "SW 12 mph" with
+a 225° arrow, HRRR-500 falls back to GFS, Open-Meteo-down falls back to the
+NWS "NNW 10 mph" row.

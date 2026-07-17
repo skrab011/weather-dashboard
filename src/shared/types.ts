@@ -164,6 +164,7 @@ export interface LocationWeather {
   sunTimes:   SunTimes | null;        // calculated locally, always available
   airQuality: SourceResult<LocationAirQuality>;
   openMeteo:  SourceResult<OpenMeteoForecast[]>; // extra global models (ECMWF, GFS) for the chart
+  currentWind: SourceResult<CurrentWind>;        // HRRR/GFS current wind for the Now card
 }
 
 // The two possible forecast views.
@@ -241,6 +242,16 @@ export interface OpenMeteoForecast {
   model: string;               // Open-Meteo model id, e.g. "ecmwf_ifs025"
   elevationFt: number | null;  // model grid-cell elevation (for the chart label)
   rows: OpenMeteoRow[];
+}
+
+// Current wind for the Now card, from Open-Meteo's `current` block.
+// Sourced from HRRR (NOAA's 3 km rapid-refresh model, updated hourly) with
+// GFS as the automatic fallback — HRRR only covers the lower 48. The Now
+// card falls back to the NWS hourly wind when this source is unavailable.
+export interface CurrentWind {
+  model: string;         // Open-Meteo model id that supplied the reading
+  speedMph: number;
+  directionDeg: number;  // meteorological degrees — direction the wind is FROM
 }
 
 // ---------------------------------------------------------------------------

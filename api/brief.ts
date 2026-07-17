@@ -1,7 +1,10 @@
 // ---------------------------------------------------------------------------
 // GET /api/brief — generates and caches the AI consensus brief.
 //
-// Normal page loads: reads the cached blob (fast, no AI call).
+// Normal page loads: serves the cached blob while it is younger than
+//                    BRIEF_MAX_AGE_MS; past that age the load regenerates
+//                    and re-caches (stale cache still serves as the fallback
+//                    if generation fails, so the card never goes blank).
 // Manual refresh:    ?refresh=true triggers a fresh generation and re-caches.
 // All generation logic lives in this single file to avoid inter-api imports
 // which Vercel's bundler does not handle reliably.
@@ -29,6 +32,18 @@ const BRIEF_LON     = -106.090422;
 const NWS_UA        = "weather-dashboard/1.0 (jskraba0601@gmail.com)";
 const CAIC_HEADERS  = { "User-Agent": "Mozilla/5.0 (compatible; weather-dashboard/1.0)", "Referer": "https://avalanche.state.co.us/", "Origin": "https://avalanche.state.co.us" };
 const BLOB_NAME     = "consensus-brief.json";
+
+// How old a cached brief may get before a normal page load regenerates it.
+// The Blob cache itself never expires, so without this check the brief only
+// ever updated on a manual ↻ Refresh (the "Generated" stamp froze at the last
+// manual refresh while "Last updated" kept advancing).
+const BRIEF_MAX_AGE_MS = 30 * 60_000; // 30 minutes
+
+// True when the cached brief is younger than BRIEF_MAX_AGE_MS. A missing or
+// unparsable generatedAt counts as stale (NaN comparisons are false).
+function isFresh(cached: BriefResult): boolean {
+  return Date.now() - Date.parse(cached.generatedAt) < BRIEF_MAX_AGE_MS;
+}
 
 // ---------------------------------------------------------------------------
 // US bounding box — blocks non-US coordinates on the new lat/lon path.
@@ -386,7 +401,9 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   try {
     if (!wantsRefresh) {
       const cached = await readCached(blobName);
-      if (cached) { res.status(200).json({ ...cached, error: null }); return; }
+      // Serve the cache only while it's fresh — an aged-out brief falls
+      // through to regeneration exactly like a missing one.
+      if (cached && isFresh(cached)) { res.status(200).json({ ...cached, error: null }); return; }
     }
     const result = await generateBrief(lat, lon, inColorado);
     await writeCached(blobName, result);

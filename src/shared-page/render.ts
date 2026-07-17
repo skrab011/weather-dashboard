@@ -156,7 +156,7 @@ export function makeRenderAll(store: Store, locations: RuntimeLocation[]): () =>
     const showPaTemp = !!weather.airQuality.data?.tempF;
 
     renderAlerts(weather.alerts);
-    renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes, weather.airQuality, showPaTemp);
+    renderConditions(weather.hourly, weather.gridpoint, weather.sunTimes, weather.airQuality, showPaTemp, weather.currentWind);
     renderAirQuality(weather.airQuality);
     renderHourly(weather.hourly, weather.gridpoint, state.activeHourlyVar, store.setActiveHourlyVar);
     renderForecast(weather.forecast);

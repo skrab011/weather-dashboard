@@ -22,7 +22,7 @@
 // call limit at personal/family scale.
 // ---------------------------------------------------------------------------
 
-import type { OpenMeteoForecast, OpenMeteoRow, SourceResult } from "./types";
+import type { CurrentWind, OpenMeteoForecast, OpenMeteoRow, SourceResult } from "./types";
 
 const OPEN_METEO_BASE = "https://api.open-meteo.com/v1/forecast";
 
@@ -122,6 +122,80 @@ export async function fetchOpenMeteo(lat: number, lon: number): Promise<OpenMete
     throw firstErr?.reason instanceof Error ? firstErr.reason : new Error("Open-Meteo: all models failed");
   }
   return ok;
+}
+
+// ---------------------------------------------------------------------------
+// Current wind for the Now card — HRRR first, GFS fallback.
+//
+// HRRR (gfs_hrrr) is NOAA's 3 km rapid-refresh model, updated hourly — the
+// best short-term wind source over the lower 48, but it doesn't cover
+// Alaska/Hawaii. Models are tried in order; the first one that returns a
+// usable reading wins, so off-CONUS locations (and HRRR outages) fall
+// through to the global GFS automatically.
+// ---------------------------------------------------------------------------
+const CURRENT_WIND_MODELS = ["gfs_hrrr", "gfs_seamless"];
+
+interface OpenMeteoCurrentResponse {
+  current?: Record<string, unknown>;
+}
+
+// Pull one value from the `current` block, tolerating both the unsuffixed key
+// (single-model requests) and the `{key}_{model}` suffixed key — same
+// tolerance as series() above for the hourly block.
+function currentValue(
+  current: Record<string, unknown> | undefined,
+  key: string,
+  model: string,
+): number | null {
+  return numOrNull(current?.[key] ?? current?.[`${key}_${model}`]);
+}
+
+async function fetchCurrentWindModel(lat: number, lon: number, model: string): Promise<CurrentWind> {
+  const params = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    current: "wind_speed_10m,wind_direction_10m",
+    wind_speed_unit: "mph",
+    models: model,
+  });
+
+  const res = await fetch(`${OPEN_METEO_BASE}?${params.toString()}`);
+  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status} (${model})`);
+
+  const json = (await res.json()) as OpenMeteoCurrentResponse;
+  const speedMph     = currentValue(json.current, "wind_speed_10m", model);
+  const directionDeg = currentValue(json.current, "wind_direction_10m", model);
+  if (speedMph === null || directionDeg === null) {
+    throw new Error(`Open-Meteo: no current wind in response (${model})`);
+  }
+  return { model, speedMph, directionDeg };
+}
+
+// Failure-isolation wrapper for the Now card's wind. Never throws: when every
+// model fails it returns an error result that preserves the previous good
+// reading, and the card itself falls back to NWS wind when nothing is left.
+export async function fetchCurrentWindResult(
+  lat: number,
+  lon: number,
+  prev: SourceResult<CurrentWind>,
+): Promise<SourceResult<CurrentWind>> {
+  let lastErr = "Open-Meteo: current wind unavailable";
+  for (const model of CURRENT_WIND_MODELS) {
+    try {
+      const data = await fetchCurrentWindModel(lat, lon, model);
+      const now = new Date();
+      return { data, error: null, lastUpdated: now, lastGoodData: data, lastGoodUpdated: now };
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err);
+    }
+  }
+  return {
+    data: null,
+    error: lastErr,
+    lastUpdated: null,
+    lastGoodData: prev.lastGoodData,
+    lastGoodUpdated: prev.lastGoodUpdated,
+  };
 }
 
 // ---------------------------------------------------------------------------

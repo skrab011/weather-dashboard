@@ -18,6 +18,7 @@ import type {
   CAICZoneData,
   ChartVar,
   ConsensusBrief,
+  CurrentWind,
   HourlyVar,
   Location,
   LocationAirQuality,
@@ -53,6 +54,7 @@ function emptyLocationWeather(): LocationWeather {
     sunTimes:   null,
     airQuality: emptyResult<LocationAirQuality>(),
     openMeteo:  emptyResult<OpenMeteoForecast[]>(),
+    currentWind: emptyResult<CurrentWind>(),
   };
 }
 

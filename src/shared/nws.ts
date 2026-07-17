@@ -183,9 +183,9 @@ async function settle<T>(
 // If /points fails (called before this), the caller handles the error and
 // this function is never reached for that location.
 // ---------------------------------------------------------------------------
-// Return type excludes sunTimes (computed separately), airQuality, and openMeteo
-// (each fetched as its own separate source in the boot flow).
-type NWSWeatherResult = Omit<LocationWeather, "sunTimes" | "airQuality" | "openMeteo">;
+// Return type excludes sunTimes (computed separately) and airQuality, openMeteo,
+// and currentWind (each fetched as its own separate source in the boot flow).
+type NWSWeatherResult = Omit<LocationWeather, "sunTimes" | "airQuality" | "openMeteo" | "currentWind">;
 
 export async function fetchAllForLocation(
   location: Location,

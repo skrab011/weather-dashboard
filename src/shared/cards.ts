@@ -19,6 +19,7 @@ import type {
   CAICWeatherSummary,
   ChartVar,
   ConsensusBrief,
+  CurrentWind,
   HourlyVar,
   LocationAirQuality,
   NWSAlert,
@@ -72,6 +73,12 @@ export function fmtWind(raw: string): string {
   return raw.replace(" to ", "–");
 }
 
+// Meteorological degrees → the nearest 16-point cardinal (0° = N, from-direction).
+const CARDINALS_16 = Object.keys(WIND_DIR_DEG);
+export function degToCardinal(deg: number): string {
+  return CARDINALS_16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+}
+
 // Build a card footer showing "Last updated HH:MM" (and a stale-data note on error).
 export function cardFooter(lastUpdated: Date | null, error: string | null): string {
   const parts: string[] = [];
@@ -123,6 +130,10 @@ export function renderAlerts(result: SourceResult<NWSAlert[]>): void {
 // `showPaTemp` controls whether the PurpleAir corrected temperature is shown
 // beside the NWS reading. V1 sets it true for home only; the shared page sets
 // it per its own rules. The PA value is additive — it never replaces NWS.
+//
+// `windResult` (HRRR, GFS fallback — see openmeteo.ts) replaces the NWS hourly
+// wind on the Wind row when available; NWS wind is the fallback so the row
+// never goes blank on an Open-Meteo outage.
 // ---------------------------------------------------------------------------
 export function renderConditions(
   hourlyResult: SourceResult<NWSPeriod[]>,
@@ -130,6 +141,7 @@ export function renderConditions(
   sunTimes: SunTimes | null,
   aqResult: SourceResult<LocationAirQuality>,
   showPaTemp: boolean,
+  windResult: SourceResult<CurrentWind>,
 ): void {
   const el = document.getElementById("conditions-region")!;
 
@@ -151,7 +163,15 @@ export function renderConditions(
   let hero = "";
 
   if (now) {
-    const windDeg = WIND_DIR_DEG[now.windDirection] ?? 0;
+    // Wind row: model wind (HRRR/GFS) when available, NWS hourly otherwise.
+    // Both are "from" directions, so the arrow convention is identical; the
+    // model reading reuses the same 16-point cardinal for display.
+    const modelWind = windResult.data ?? windResult.lastGoodData;
+    const windCardinal = modelWind ? degToCardinal(modelWind.directionDeg) : now.windDirection;
+    const windDeg   = WIND_DIR_DEG[windCardinal] ?? 0;
+    const windLabel = modelWind
+      ? `${windCardinal} ${Math.round(modelWind.speedMph)} mph`
+      : `${now.windDirection} ${fmtWind(now.windSpeed)}`;
 
     // Show PurpleAir corrected temp beneath the condition when requested by the
     // caller. The PA value is additive — it never replaces the NWS reading.
@@ -178,7 +198,7 @@ export function renderConditions(
         <span class="cond-label">Wind</span>
         <span class="cond-value">
           <span class="wind-arrow" style="transform:rotate(${windDeg}deg)" aria-hidden="true">↑</span>
-          ${now.windDirection} ${fmtWind(now.windSpeed)}
+          ${windLabel}
         </span>
       </div>
     `);
