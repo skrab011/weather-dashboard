@@ -919,3 +919,49 @@ on the Vercel preview. Playwright harness (mocked NWS + mocked/failed
 Open-Meteo): 14/14 checks pass on V1 and V2 — HRRR renders "SW 12 mph" with
 a 225° arrow, HRRR-500 falls back to GFS, Open-Meteo-down falls back to the
 NWS "NNW 10 mph" row.
+
+## Service worker blank-page fix (2026-07-18)
+
+**Bug (owner-reported):** after a deployment, opening the installed PWA (V1
+or V2) showed a blank screen until force-closed and reopened; on desktop, the
+first refresh of a stale tab was blank and a second refresh loaded fine.
+
+**Root cause:** `public/sw.js` served *everything* — including the HTML page
+itself — cache-first (stale-while-revalidate). Vite renames the JS bundles on
+every build and Vercel deletes the previous deployment's files, so the cached
+HTML pointed at bundles that no longer existed on the server. When the SW's
+own cached copy of those bundles was missing (see the second bug below), the
+script request 404'd and the page rendered blank. The background revalidation
+had meanwhile stored the *new* HTML, which is why the second load always
+worked. The 2026-06-20 `updatefound` auto-reload fix never engaged because it
+only fires when `sw.js` itself changes byte-wise — and it hadn't changed
+since `weather-v3` (2026-06-20), so every deployment since could reproduce
+the blank page.
+
+**Second bug found during verification:** all runtime `cache.put()` writes
+were fire-and-forget promises with no `event.waitUntil()`. The browser may
+terminate a service worker as soon as the response is delivered, silently
+dropping the pending write — reproduced 100% in the Playwright harness
+(runtime cache stayed empty; only the 5 precached files ever landed). This is
+why the "cached" JS bundles could be missing in step one.
+
+**Fix (both in `public/sw.js`):**
+1. Navigation requests (`request.mode === "navigate"`) are now
+   **network-first**: fresh HTML (which always references live bundles) is
+   served and cached; the cached copy is used only when the network fails
+   (offline). HTML is < 1 kB so there's no perceptible cost. Static assets
+   keep stale-while-revalidate — safe because hashed filenames are immutable.
+2. Every `cache.put()` is wrapped in `event.waitUntil()` (shared `store()`
+   helper) so writes always complete.
+3. Cache bumped `weather-v3` → `weather-v4` — clears all stale caches on
+   activate, and the byte-change in `sw.js` triggers the existing
+   `updatefound` auto-reload once, transitioning existing installs cleanly.
+
+**Verification (dedicated Playwright harness, scratchpad `sw-test.mjs` —
+the standard verify recipe stubs the SW out, so this one keeps it live):**
+static server serving `dist/` simulates a Vercel deployment (new HTML marker,
+renamed bundle, old bundle 404) and offline (connection reset). Old SW:
+harness reproduces the bug (first reload after deploy serves stale HTML).
+New SW, 6/6: SW controls page; single reload after deploy serves new HTML;
+app JS executes (not blank); `/shared` also network-first; offline reload
+falls back to cached HTML; offline page fully renders from cached assets.
