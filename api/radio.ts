@@ -24,7 +24,7 @@ type Res = { status: (c: number) => Res; json: (b: unknown) => void; setHeader: 
 // The radio-host delivery and pacing are designed into the owner's custom
 // voice itself (ElevenLabs Voice Design) — no instructions or voice_settings
 // are sent; omitting voice_settings uses the settings saved on the voice.
-const TTS_VOICE_ID   = "od84OdVweqzO3t6kKlWT";
+const TTS_VOICE_ID   = "CeNX9CMwmxDxUF5Q2Inm";
 const TTS_MODEL      = "eleven_turbo_v2_5";
 const ELEVENLABS_TTS_API =
   `https://api.elevenlabs.io/v1/text-to-speech/${TTS_VOICE_ID}?output_format=mp3_44100_128`;
