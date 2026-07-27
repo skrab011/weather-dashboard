@@ -965,3 +965,48 @@ harness reproduces the bug (first reload after deploy serves stale HTML).
 New SW, 6/6: SW controls page; single reload after deploy serves new HTML;
 app JS executes (not blank); `/shared` also network-first; offline reload
 falls back to cached HTML; offline page fully renders from cached assets.
+
+---
+
+## Consensus Brief — radio-announcer prompt rewrite (2026-07-27)
+
+**Why:** The owner now uses the 🎙 Radio button as a regular part of the
+routine, so the brief is heard aloud as often as it's read. The original
+prompt ("concise weather forecaster… 3–5 plain-language sentences") produced
+text tuned for the page, not the ear — abbreviations (NWS, CAIC, ECMWF, GFS),
+symbols, and a written-summary cadence that sounds stilted through
+text-to-speech.
+
+**Key constraint — one shared piece of text:** the brief is generated once
+and does double duty; the same string is rendered on the Consensus Brief card
+*and* read aloud by `/api/radio` (which prepends the time-of-day greeting).
+There is no separate radio script. Rather than add a second AI generation and
+cache path (doubles Haiku cost, more to maintain), the single brief was
+rewritten to read well aloud while still looking clean on the card — the
+owner chose this shared-brief approach over a separate radio version.
+
+**Change (both prompts in `api/brief.ts` — the Colorado consensus prompt and
+the non-CO forecast prompt, kept in sync):**
+- Persona switched from "concise weather forecaster" to "warm, personable
+  radio weather announcer… write it to be heard, not read on a page."
+- Instructed to write for the ear: conversational lead-in, smooth spoken
+  transitions, a little friendly warmth, and **no symbols, abbreviations,
+  bullet points, parentheticals, or markdown** (all sound robotic via TTS).
+- Model agreement/disagreement is now phrased conversationally ("the models
+  are split on…") instead of reciting source names like a table — reinforces
+  the pre-existing "don't name sources robotically" design.
+- Length raised 3–5 → **5–7 sentences** (owner's choice) for better spoken
+  pacing; `max_tokens` bumped 400 → 500 so the longer format can't truncate
+  mid-sentence.
+- Told **not** to add its own greeting — the "Good morning/afternoon/evening"
+  is still added only in `api/radio.ts`, so the on-screen card stays
+  greeting-free.
+
+**No radio-side changes:** `api/radio.ts` was untouched. Its MP3 cache hash
+already covers the full spoken text, so a reworded brief regenerates the
+audio automatically on the next refresh.
+
+**Deploy/verify:** pushed straight to `main` (Vercel auto-deploy). The brief
+can't be tested in the sandbox (live Anthropic + NWS/CAIC calls, no keys), so
+verification is on the live app: ↻ Refresh the brief card to force a fresh
+generation, then 🎙 Radio to hear it.
