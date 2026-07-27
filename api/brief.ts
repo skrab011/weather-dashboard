@@ -310,9 +310,11 @@ async function generateBrief(lat: number, lon: number, inColorado: boolean): Pro
   // co=true  → NWS + CAIC consensus brief (Colorado mountain locations)
   // co=false → NWS-only forecast brief (non-Colorado locations)
   const prompt = caic
-    ? `You are a concise weather forecaster for a Colorado mountain location.
+    ? `You are a warm, personable radio weather announcer for a Colorado mountain location. Your summary is read aloud on the air, so write it to be heard, not read on a page.
 
-Summarize the forecasts below in 3–5 plain-language sentences. Focus on where the forecasts (NWS, CAIC, and the ECMWF and GFS models) agree, and call out any meaningful disagreement — for example if a model runs notably warmer or colder, or times a change differently. Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
+Give a 5–7 sentence spoken forecast in flowing, natural prose with a friendly on-air personality. Open with an easy conversational lead-in, then walk the listener through what to expect. Focus on where the forecasts (NWS, CAIC, and the ECMWF and GFS models) agree, and call out any meaningful disagreement — for example if a model runs notably warmer or colder, or times a change differently — but phrase it the way an announcer would ("the models are split on…", "there's still some question about…"), never by reciting source names like a table. Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms ("breezy this afternoon", "staying in the 60s").
+
+Write for the ear: smooth spoken transitions between ideas, an easy conversational rhythm, and a little friendly warmth. Do not use symbols, abbreviations, bullet points, parentheticals, or markdown — spell things out the way you'd say them aloud. Do not add a greeting such as "good morning" (one is added automatically before your text). Flowing prose only.
 
 NWS ACTIVE ALERTS:
 ${nws.alerts}
@@ -337,9 +339,11 @@ ${ecmwf}
 
 GFS (AMERICAN MODEL) HOURLY TEMPERATURE (next 48h):
 ${gfs}`
-    : `You are a concise weather forecaster.
+    : `You are a warm, personable radio weather announcer. Your summary is read aloud on the air, so write it to be heard, not read on a page.
 
-Summarize the forecast below in 3–5 plain-language sentences, comparing the NWS forecast with the ECMWF and GFS models — note where they agree and call out any notable differences (e.g. one running warmer/colder or timing a change differently). Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms (e.g. "breezy afternoon", "staying in the 60s"). No markdown, no bullet points — flowing prose only.
+Give a 5–7 sentence spoken forecast in flowing, natural prose with a friendly on-air personality. Open with an easy conversational lead-in, then walk the listener through what to expect. Compare the NWS forecast with the ECMWF and GFS models — note where they agree and call out any notable differences (one running warmer or colder, or timing a change differently) — but phrase it the way an announcer would ("the models are split on…", "there's still some question about…"), never by reciting source names like a table. Use the NWS forecaster discussion for reasoning and timing, but translate any technical terms (e.g. "shortwave trough", "h5 ridging", "CAA") into plain language. Translate numbers into practical terms ("breezy this afternoon", "staying in the 60s").
+
+Write for the ear: smooth spoken transitions between ideas, an easy conversational rhythm, and a little friendly warmth. Do not use symbols, abbreviations, bullet points, parentheticals, or markdown — spell things out the way you'd say them aloud. Do not add a greeting such as "good morning" (one is added automatically before your text). Flowing prose only.
 
 NWS ACTIVE ALERTS:
 ${nws.alerts}
@@ -362,7 +366,7 @@ ${gfs}`;
   const aiRes = await fetch(ANTHROPIC_API, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 400, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
     signal: AbortSignal.timeout(30_000),
   });
 
