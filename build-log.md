@@ -1010,3 +1010,36 @@ audio automatically on the next refresh.
 can't be tested in the sandbox (live Anthropic + NWS/CAIC calls, no keys), so
 verification is on the live app: ↻ Refresh the brief card to force a fresh
 generation, then 🎙 Radio to hear it.
+
+---
+
+## Brief model upgrade — Claude Haiku 4.5 → Haiku 5.5 (2026-10-24)
+
+**Why:** Haiku 5.5 is the current Haiku — about 10× cheaper per token than
+Haiku 4.5 ($0.10 / $0.50 per million input/output tokens vs. $1 / $5, for
+prompts under 100K tokens) and better at instruction following, which suits
+the announcer prompt's "write for the ear" rules. Owner's spend before the
+switch was ~$2/month. The brief (`api/brief.ts`) is the only Claude call in
+the app; Radio (ElevenLabs) is unaffected.
+
+**Change (`api/brief.ts`, `generateBrief`):**
+- Model `claude-haiku-4-5-20251001` → `claude-haiku-5-5`.
+- `output_config: { effort: "low" }` added. Haiku 5.5 thinks before writing by
+  default; effort controls how much. Low is plenty for a 5–7 sentence summary
+  (owner's choice).
+- `max_tokens` 500 → **2000**. Thinking counts toward the cap, and Haiku 5.5's
+  newer tokenizer counts the same text as ~30% more tokens — 500 risked cutting
+  the brief off mid-sentence. The cap costs nothing unless used.
+- Added a `stop_reason === "refusal"` check: Haiku 5.5 has safety filters that
+  4.5 didn't. Very unlikely to fire on a forecast, but if it does the error is
+  explicit instead of "Empty response from Claude". (No server-side fallback
+  exists for Haiku 5.5, so none is configured.)
+- Already compatible, no change needed: no `temperature`, no assistant prefill,
+  and the answer text was already found by block type (not position), so the
+  thinking blocks at the start of the response are skipped.
+
+**Rollback:** revert the commit (or change the model string back and drop
+`output_config`).
+
+**Deploy/verify:** pushed straight to `main` (owner's call — small change).
+Verify on the live app: ↻ Refresh the brief card to force a fresh generation, then 🎙 Radio.

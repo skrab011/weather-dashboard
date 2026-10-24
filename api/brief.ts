@@ -366,13 +366,31 @@ ${gfs}`;
   const aiRes = await fetch(ANTHROPIC_API, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 500, messages: [{ role: "user", content: prompt }] }),
+    // Haiku 5.5 thinks before writing by default; that thinking counts toward
+    // max_tokens, so the cap leaves room for it. Low effort keeps thinking
+    // short — plenty for a 5–7 sentence summary.
+    body: JSON.stringify({
+      model: "claude-haiku-5-5",
+      max_tokens: 2000,
+      output_config: { effort: "low" },
+      messages: [{ role: "user", content: prompt }],
+    }),
     signal: AbortSignal.timeout(30_000),
   });
 
   if (!aiRes.ok) throw new Error(`Anthropic API ${aiRes.status}: ${await aiRes.text().catch(() => aiRes.statusText)}`);
 
-  const aiJson = await aiRes.json() as { content: Array<{ type: string; text: string }> };
+  const aiJson = await aiRes.json() as {
+    stop_reason?: string;
+    stop_details?: { category?: string | null } | null;
+    content: Array<{ type: string; text?: string }>;
+  };
+  // Safety filters can decline a request (HTTP 200, stop_reason "refusal").
+  // Unlikely for a forecast, but surface it clearly rather than as "empty".
+  if (aiJson.stop_reason === "refusal") {
+    throw new Error(`Claude declined the request (category: ${aiJson.stop_details?.category ?? "unknown"})`);
+  }
+  // Read by type, not position — the response may start with thinking blocks.
   const text = aiJson.content.find(b => b.type === "text")?.text ?? "";
   if (!text) throw new Error("Empty response from Claude");
 

@@ -59,7 +59,7 @@ Priority order for tradeoffs:
 
 ### Overlay chart + consensus brief
 - Chart: NWS + CAIC + ECMWF + GFS (Open-Meteo) on shared axes with a shaded model-disagreement band and a Temp/Wind/Precip/Snow variable toggle. Temp & wind draw all sources; precip & snow draw amounts (inches) from CAIC + ECMWF + GFS only (NWS gives precip probability, not amount). ECMWF cyan, GFS green. Elevation labeled per series in temp mode. NWS elevation: ~9,035 ft; CAIC elevation: 9,219 ft; ECMWF elevation from the live Open-Meteo grid cell. (ECMWF line + band + toggle added 2026-06-22 — Tracks A/B/C.)
-- Consensus brief: Claude Haiku (`claude-haiku-4-5-20251001`) ingests NWS + CAIC + the latest NWS Area Forecast Discussion (AFD) + ECMWF (Open-Meteo) hourly temps, returns 3–5 sentence plain-prose summary with forecaster jargon translated to plain language and a plain-language note on where the models agree/diverge. Cached in Vercel Blob. Manual refresh button on the card. (AFD + ECMWF added 2026-06-22 — see "Forecast comparison upgrade" below and `archive/forecast-upgrade-plan.md`.)
+- Consensus brief: Claude Haiku 5.5 (`claude-haiku-5-5`, effort `low`, `max_tokens` 2000; upgraded from Haiku 4.5 on 2026-10-24 — see build-log "Brief model upgrade") ingests NWS + CAIC + the latest NWS Area Forecast Discussion (AFD) + ECMWF (Open-Meteo) hourly temps, returns 3–5 sentence plain-prose summary with forecaster jargon translated to plain language and a plain-language note on where the models agree/diverge. Cached in Vercel Blob. Manual refresh button on the card. (AFD + ECMWF added 2026-06-22 — see "Forecast comparison upgrade" below and `archive/forecast-upgrade-plan.md`.)
 
 ## API keys (all provisioned)
 
