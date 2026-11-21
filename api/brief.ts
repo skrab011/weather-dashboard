@@ -24,7 +24,7 @@ interface NWSAlert  { event: string; headline: string; expires?: string }
 // ---------------------------------------------------------------------------
 const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 const NWS_BASE      = "https://api.weather.gov";
-const CAIC_PROXY    = "https://avalanche.state.co.us/api-proxy/caic_data_api";
+const CAIC_API_BASE = "https://api.avalanche.state.co.us";
 const LOOPER_BASE   = "https://looper.avalanche.state.co.us";
 // V1 personal-page defaults — unchanged
 const BRIEF_LAT     =  39.619625;
@@ -208,11 +208,11 @@ function extractArray(text: string, from: number): string | null {
 }
 
 async function fetchCAIC(lat: number, lon: number): Promise<{ summary: string; pointForecast: string }> {
-  const uri = encodeURIComponent("/api/v2/zone_weather_forecasts/statewide/current");
+  const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   const offsetMs = looperOffsetMs();
   const today = new Date(Date.now() - offsetMs).toISOString().slice(0, 10);
   const [sr, lr] = await Promise.all([
-    fetch(`${CAIC_PROXY}?_api_proxy_uri=${uri}`, { headers: CAIC_HEADERS, signal: AbortSignal.timeout(8_000) }),
+    fetch(`${CAIC_API_BASE}/api/v2/zone_weather_forecasts/statewide/${encodeURIComponent(timestamp)}`, { headers: CAIC_HEADERS, signal: AbortSignal.timeout(8_000) }),
     fetch(`${LOOPER_BASE}/iptfcst/ptfcst.php?idate=${today}&res=4&lat=${lat}&lon=${lon}`, { headers: CAIC_HEADERS, signal: AbortSignal.timeout(8_000) }),
   ]);
 

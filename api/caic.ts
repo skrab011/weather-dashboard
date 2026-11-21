@@ -9,8 +9,7 @@
 // failure in one never suppresses the other:
 //
 //   1. Weather Summary write-up (single JSON object, statewide)
-//      https://avalanche.state.co.us/api-proxy/caic_data_api
-//        ?_api_proxy_uri=/api/v2/zone_weather_forecasts/statewide/current
+//      https://api.avalanche.state.co.us/api/v2/zone_weather_forecasts/statewide/{ISO-timestamp}
 //      Returns one object with: id, type, zones, body, issued_at, issuer, …
 //      The write-up is in `body`; freshness comes from `issued_at` + `issuer`.
 //
@@ -35,8 +34,9 @@ type Res = {
   setHeader: (name: string, value: string) => void;
 };
 
-// CAIC API proxy — discovered from network inspection of avalanche.state.co.us/weather.
-const CAIC_PROXY = "https://avalanche.state.co.us/api-proxy/caic_data_api";
+// CAIC data API — discovered from network inspection of avalanche.state.co.us/weather
+// (replaces the retired avalanche.state.co.us/api-proxy/caic_data_api path).
+const CAIC_API_BASE = "https://api.avalanche.state.co.us";
 
 // Point-forecast server — separate host from the main CAIC site.
 const LOOPER_BASE = "https://looper.avalanche.state.co.us";
@@ -94,11 +94,14 @@ function buildIssuedBy(issuedAt: string | null, issuer: unknown, bodyText: strin
 // Fetch the statewide zone weather forecast object.
 // Response shape (confirmed): { id, type, zones, body, issued_at, issuer, … }
 async function fetchSummary(): Promise<{ issuedBy: string; bodyHtml: string }> {
-  const uri = encodeURIComponent("/api/v2/zone_weather_forecasts/statewide/current");
-  const res = await fetch(`${CAIC_PROXY}?_api_proxy_uri=${uri}`, {
-    headers: CAIC_HEADERS,
-    signal: AbortSignal.timeout(10_000),
-  });
+  const timestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+  const res = await fetch(
+    `${CAIC_API_BASE}/api/v2/zone_weather_forecasts/statewide/${encodeURIComponent(timestamp)}`,
+    {
+      headers: CAIC_HEADERS,
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
 
   if (!res.ok) throw new Error(`CAIC summary HTTP ${res.status}`);
 

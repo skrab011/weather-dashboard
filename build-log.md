@@ -1043,3 +1043,16 @@ the app; Radio (ElevenLabs) is unaffected.
 
 **Deploy/verify:** pushed straight to `main` (owner's call — small change).
 Verify on the live app: ↻ Refresh the brief card to force a fresh generation, then 🎙 Radio.
+
+---
+
+## CAIC Weather Summary API migration (2026-11-21)
+
+**Symptom:** The CAIC Weather Summary card stopped loading on both V1 and V2 (Colorado locations). `GET /api/caic` returned `summaryError: "CAIC summary HTTP 404"` while `pointForecast` (looper) continued working normally. `api/brief.ts` was also silently receiving `"Unavailable"` for the CAIC summary text.
+
+**Root cause:** CAIC relaunched `avalanche.state.co.us` as a static Astro site hosted on Amazon S3 / CloudFront and retired the old `/api-proxy/caic_data_api` proxy path. CAIC's new weather page now calls their data API directly at `https://api.avalanche.state.co.us/api/v2/zone_weather_forecasts/statewide/{ISO-timestamp}` (UTC ISO string without milliseconds, URL-encoded). The JSON response schema (`body`, `issued_at`, `issuer`) is unchanged.
+
+**Fix:**
+- `api/caic.ts`: replaced `CAIC_PROXY` with `CAIC_API_BASE = "https://api.avalanche.state.co.us"` and updated `fetchSummary()` to request `/api/v2/zone_weather_forecasts/statewide/${encodeURIComponent(timestamp)}` where `timestamp` is `new Date().toISOString().replace(/\.\d{3}Z$/, "Z")`.
+- `api/brief.ts`: applied the exact same URL update in `fetchCAIC()` so the Consensus Brief includes CAIC's statewide write-up again.
+
